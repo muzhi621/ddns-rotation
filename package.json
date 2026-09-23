@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "setup": "node scripts/deploy.mjs",
     "test": "node test-scheduler.mjs && node --experimental-sqlite test-api.mjs",
     "db:create": "wrangler d1 create ddns-rotation",
     "db:init": "wrangler d1 execute ddns-rotation --file=./schema.sql",

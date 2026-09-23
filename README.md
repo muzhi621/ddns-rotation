@@ -33,35 +33,62 @@
 
 ---
 
-## 二、部署（Cloudflare Workers）
+## 二、部署（Cloudflare Workers）—— 三种方式任选
+
+### 方式一：本地一键脚本（最省事）
+
+```bash
+npm run setup
+```
+
+脚本会依次完成：装依赖 → 检查登录（未登录自动拉起浏览器授权）→ 创建或复用 D1 数据库并把 `database_id` 写进 `wrangler.toml` → 建表 → 提示输入 `ADMIN_TOKEN` → 部署。全程只需按一次回车 + 输一个密码。
+
+想手动分步（等价于脚本做的事）：
 
 ```bash
 npm install
-
-# 1) 创建 D1 数据库，把返回的 database_id 填进 wrangler.toml
-npx wrangler d1 create ddns-rotation
-
-# 2) 初始化表结构
+npx wrangler login                                        # 授权
+npx wrangler d1 create ddns-rotation                      # 把返回的 database_id 填进 wrangler.toml
 npx wrangler d1 execute ddns-rotation --remote --file=./schema.sql
-
-# 3) 设置管理令牌（管理后台与 API 的访问密码）
-npx wrangler secret put ADMIN_TOKEN
-
-# 4) 部署
+npx wrangler secret put ADMIN_TOKEN                       # 管理后台密码
 npm run deploy
 ```
 
-本地调试：
+### 方式二：Cloudflare 控制台 Workers Builds（连 Git 仓库自动部署）
+
+即控制台 `Workers & Pages → 创建 → 连接 Git 仓库` 后出现的「设置您的应用程序」页面，按下面填：
+
+| 字段 | 填写内容 |
+|---|---|
+| 项目名称 | `ddns-rotation`（保持） |
+| 构建命令 | `npm ci && sed -i "s/REPLACE_WITH_YOUR_D1_DATABASE_ID/${D1_DATABASE_ID}/" wrangler.toml` |
+| 部署命令 | `npx wrangler deploy`（保持） |
+| 预览命令 | **清空**（`wrangler preview` 在 wrangler v3 已移除，留着会报错） |
+| 启用预览构建 | **关掉** |
+
+点开「高级设置 → 变量和密钥」，加一个**明文变量**（不是密钥）：
+
+| 变量名 | 值 |
+|---|---|
+| `D1_DATABASE_ID` | D1 数据库的 UUID（`npx wrangler d1 list`，或控制台 D1 页面里那串 UUID） |
+
+> **前置条件**：D1 数据库必须先存在。控制台 `Workers & Pages → D1 SQL database → Create`，名字填 `ddns-rotation`，创建后复制 **Database ID（UUID）** 粘贴到上面的变量里。
+>
+> **`ADMIN_TOKEN` 怎么设**：首次部署成功后，到 `Workers & Pages → ddns-rotation → 设置 → 变量和密钥 → 添加`，类型选「密钥」，名称 `ADMIN_TOKEN`，保存即生效（**不需要重新部署**）。
+>
+> 这套流程走的是 Cloudflare 官方的 GitHub OAuth 集成，权限由集成自带，**不会再遇到之前 Actions 里 API Token 权限不足的问题**。
+
+### 本地调试
 
 ```bash
-cp .dev.vars.example .dev.vars   # 写入 ADMIN_TOKEN
+cp .dev.vars.example .dev.vars                              # 写入 ADMIN_TOKEN
 npx wrangler d1 execute ddns-rotation --file=./schema.sql   # 本地库
-npm run dev                       # http://localhost:8787
+npm run dev                                                 # http://localhost:8787
 ```
 
-访问 `https://<你的-worker>.workers.dev` 打开管理后台，右上角填入 `ADMIN_TOKEN` 即可操作。
+部署完成后访问 `https://<你的-worker>.workers.dev` 打开管理后台，右上角填入 `ADMIN_TOKEN` 即可操作。
 
-### GitHub Actions 自动部署（推荐）
+### 方式三：GitHub Actions（可选，需自己配 Cloudflare API Token）
 
 推送到 `main` 即自动完成：**跑自测 → 注入 database_id → 迁移表结构 → 部署 Worker**。
 
@@ -76,7 +103,7 @@ npm run dev                       # http://localhost:8787
 
 配置好后手动触发一次：Actions → Deploy to Cloudflare Workers → **Run workflow**。
 
-> 说明：workflow 用 `sed` 把真实 `database_id` 注入 `wrangler.toml` 后再部署，仓库里保存的仍是占位符 `REPLACE_WITH_YOUR_D1_DATABASE_ID`，所以**本地部署时仍需手动替换**该文件里的 `database_id`。
+> 说明：Actions 与 Workers Builds 都是用 `sed` 把真实 `database_id` 注入 `wrangler.toml` 后再部署，仓库里保存的始终是占位符 `REPLACE_WITH_YOUR_D1_DATABASE_ID`。本地部署用 `npm run setup` 会自动替换；若走手动分步，记得自己改 `wrangler.toml`。
 
 **定时频率**：默认每 5 分钟对齐一次（`wrangler.toml` 的 `crons`）。因为更新是幂等的（目标 IP 没变就不调 API），频率高也不会浪费配额。想更省可改成 `*/10 * * * *` 或只在整点跑。
 
