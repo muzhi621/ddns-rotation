@@ -5,37 +5,67 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  test:
+    name: 排班算法 & API 自测
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+
   deploy:
+    name: 部署
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - run: npm ci
 
-      # 首次部署前在 CF 建库后，把 database_id 填进 wrangler.toml
-      - name: Create D1 database (if missing)
-        continue-on-error: true
+      - name: 校验必需 Secrets
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          missing=()
+          [ -z "$CF_TOKEN" ] && missing+=(CLOUDFLARE_API_TOKEN)
+          [ -z "$D1_ID" ] && missing+=(D1_DATABASE_ID)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::仓库缺少 Secrets: ${missing[*]} —— 请在 Settings → Secrets and variables → Actions 中添加后重新运行"
+            exit 1
+          fi
+          if [ -z "${{ secrets.ADMIN_TOKEN }}" ]; then
+            echo "::warning::未设置 ADMIN_TOKEN，部署后管理后台将不做鉴权（任何人可改解析），强烈建议配置"
+          fi
+
+      # wrangler.toml 中的占位符替换为真实 database_id
+      - name: 注入 D1 database_id
+        run: |
+          sed -i "s|REPLACE_WITH_YOUR_D1_DATABASE_ID|${{ secrets.D1_DATABASE_ID }}|" wrangler.toml
+          grep "database_id" wrangler.toml
+
+      # schema.sql 全部使用 CREATE TABLE IF NOT EXISTS，重复执行安全
+      - name: 初始化 / 迁移数据库
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler d1 create ddns-rotation || true
+        run: npx wrangler d1 execute ddns-rotation --remote --file=./schema.sql --yes
 
-      - name: Apply schema (remote)
-        continue-on-error: true
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler d1 execute ddns-rotation --remote --file=./schema.sql --yes || true
-
-      - name: Deploy worker
+      - name: 部署 Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          secrets: |
-            ADMIN_TOKEN
+          secrets: ${{ secrets.ADMIN_TOKEN != '' && 'ADMIN_TOKEN' || '' }}
