@@ -98,7 +98,15 @@ async function load() {
     DATA = ov; META = meta;
     $('#status').textContent = '已连接 · ' + new Date(ov.now).toLocaleString('zh-CN');
     render();
-  } catch (e) { $('#status').textContent = '连接失败：' + e.message; toast('加载失败：' + e.message, true); }
+  } catch (e) {
+    $('#status').textContent = '连接失败：' + e.message;
+    toast('加载失败：' + e.message, true);
+    if (!DATA) { // 未部署/无后端时仍渲染界面骨架，便于本地预览
+      DATA = { groups: [], machines: [], credentials: [], logs: [] };
+      META = { providers: [], modes: [{ key: 'window', label: 'window' }, { key: 'rotate', label: 'rotate' }, { key: 'static', label: 'static' }], timezones: ['Asia/Shanghai'] };
+      render();
+    }
+  }
 }
 
 /* ---------- 通用表单弹窗 ---------- */
