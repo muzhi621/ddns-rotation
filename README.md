@@ -62,9 +62,11 @@ npm run deploy
 |---|---|
 | 项目名称 | `ddns-rotation`（保持） |
 | 构建命令 | `npm ci && sed -i "s/REPLACE_WITH_YOUR_D1_DATABASE_ID/${D1_DATABASE_ID}/" wrangler.toml` |
-| 部署命令 | `npx wrangler deploy`（保持） |
+| 部署命令 | `npx wrangler deploy && npx wrangler d1 execute ddns-rotation --remote --file=./schema.sql` |
 | 预览命令 | **清空**（`wrangler preview` 在 wrangler v3 已移除，留着会报错） |
 | 启用预览构建 | **关掉** |
+
+> 部署命令后半段是**建表**（`CREATE TABLE IF NOT EXISTS`，幂等，重复跑不丢数据）。`wrangler deploy` 本身不会建表，漏掉这步会让后台所有接口报 `no such table`。
 
 点开「高级设置 → 变量和密钥」，加一个**明文变量**（不是密钥）：
 
@@ -74,7 +76,7 @@ npm run deploy
 
 > **前置条件**：D1 数据库必须先存在。控制台 `Workers & Pages → D1 SQL database → Create`，名字填 `ddns-rotation`，创建后复制 **Database ID（UUID）** 粘贴到上面的变量里。
 >
-> **`ADMIN_TOKEN` 怎么设**：首次部署成功后，到 `Workers & Pages → ddns-rotation → 设置 → 变量和密钥 → 添加`，类型选「密钥」，名称 `ADMIN_TOKEN`，保存即生效（**不需要重新部署**）。
+> **`ADMIN_TOKEN` 怎么设**：首次部署成功后，到 `Workers & Pages → ddns-rotation → 设置 → 变量和密钥 → 添加`，类型选「**密钥**」（加密），名称 `ADMIN_TOKEN`，值填你的密码，保存即生效（**不需要重新部署**）。(`wrangler secret put` 是交互式命令，无法放进构建命令里。)
 >
 > 这套流程走的是 Cloudflare 官方的 GitHub OAuth 集成，权限由集成自带，**不会再遇到之前 Actions 里 API Token 权限不足的问题**。
 
