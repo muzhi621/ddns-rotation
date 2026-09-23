@@ -1,0 +1,24 @@
+name = "ddns-rotation"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+
+# 静态管理后台（Workers Static Assets）
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# 每 5 分钟对齐一次解析（可在后台手动触发，也可改成 */10 或整点）
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ddns-rotation"
+# 执行 `npx wrangler d1 create ddns-rotation` 后把返回的 database_id 填到这里
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[observability]
+enabled = true
+
+# 管理后台 / API 访问令牌：部署前执行 `npx wrangler secret put ADMIN_TOKEN`
+# 本地开发写入 .dev.vars：ADMIN_TOKEN=dev-token

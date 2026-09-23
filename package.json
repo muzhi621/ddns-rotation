@@ -1,0 +1,21 @@
+{
+  "name": "ddns-rotation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "多机多域名定时轮换解析调度系统（Cloudflare Worker + D1 + Cron）",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create ddns-rotation",
+    "db:init": "wrangler d1 execute ddns-rotation --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute ddns-rotation --remote --file=./schema.sql",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}
