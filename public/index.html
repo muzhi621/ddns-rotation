@@ -246,7 +246,9 @@ function modal(title, fields, values = {}) {
     applyShow();
     fields.forEach((f) => {
       const el = wrap.querySelector(`[data-k="${f.key}"]`);
-      if (el && f.showIf) el.addEventListener('change', applyShow);
+      if (!el) return;
+      if (f.showIf) el.addEventListener('change', applyShow);
+      if (f.onChange) el.addEventListener('change', () => f.onChange(getVal(), wrap));
     });
     const onKey = (e) => { if (e.key === 'Escape') { cleanup(); close(); } };
     const cleanup = () => document.removeEventListener('keydown', onKey);
@@ -623,7 +625,19 @@ function domainFields() {
     { key: 'group_id', label: '所属分组', type: 'select', options: DATA.groups.map((g) => ({ value: g.id, label: g.name })) },
     { key: 'provider', label: 'DNS 厂商', type: 'select', options: (META.providers || []).map((p) => ({ value: p.key, label: p.label })) },
     { key: 'credential_id', label: '使用的凭据', type: 'select', options: credOpts, hint: DATA.credentials.length ? '' : '需要先在「DNS 凭据」页新建一条凭据' },
-    { key: 'domain', label: '域名', placeholder: 'example.com' },
+    { key: 'domain', label: '域名（填注册的根域名）', placeholder: 'example.com',
+      hint: '填你在 DNS 厂商注册的域名本身；子域（如 ddns1）填到「主机记录」。误填完整子域会自动帮你拆分',
+      onChange: (v, wrap) => {
+        const d = String(v.domain || '').trim().toLowerCase();
+        const parts = d.split('.');
+        const rnEl = wrap.querySelector('[data-k="record_name"]');
+        const dEl = wrap.querySelector('[data-k="domain"]');
+        if (parts.length > 2 && rnEl && (!rnEl.value || rnEl.value === '@')) {
+          rnEl.value = parts[0];
+          dEl.value = parts.slice(1).join('.');
+          toast('已自动拆分：域名 → ' + parts.slice(1).join('.') + '，主机记录 → ' + parts[0]);
+        }
+      } },
     { key: 'record_name', label: '主机记录', placeholder: '@ 或 www', hint: '@ 表示根域名本身' },
     { key: 'ttl', label: 'TTL（秒）', type: 'number', hint: '越小生效越快；建议 60~600。Cloudflare 橙云代理时固定为 auto' },
     { key: 'proxied', label: 'Cloudflare 橙云代理（仅 Cloudflare 厂商）', type: 'checkbox' },
