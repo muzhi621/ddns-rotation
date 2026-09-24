@@ -129,5 +129,29 @@ check('删除分组后仅剩 1 组', ov2.groups.length, 1);
 const st = db.prepare("SELECT COUNT(*) c FROM state WHERE key LIKE 'rec:%'").get().c;
 check('删除分组清理 state', st, 1);
 
+// 14. meta 免鉴权 + 中文化 + 输入校验 + 凭据引用保护
+const meta = (await req('GET', '/api/meta')).json;
+check('meta 免鉴权可访问', Array.isArray(meta.providers) && meta.providers.length >= 5, true);
+check('模式标签已中文化', meta.modes.length === 3 && meta.modes.every((m) => !/^[a-z]+$/.test(m.label)), true);
+
+const badIp = await req('POST', '/api/machines', { name: 'bad', ip: '999.1.1.1' });
+check('非法 IP 被拒绝', badIp.status, 400);
+
+const badDomain = await req('POST', '/api/domains', { group_id: gB, credential_id: cred, provider: 'none', domain: 'not a domain' });
+check('非法域名被拒绝', badDomain.status, 400);
+
+const badWin = await req('PUT', `/api/groups/${gB}/members`, { items: [{ machine_id: m1, window_start: '8点', window_end: '20:00' }] });
+check('非法时段被拒绝', badWin.status, 400);
+
+const okWin = await req('PUT', `/api/groups/${gB}/members`, { items: [{ machine_id: m1, window_start: '22:00', window_end: '06:00' }] });
+check('跨天时段被接受', okWin.status, 200);
+
+const delCred = await req('DELETE', `/api/credentials/${cred}`);
+check('被引用的凭据禁止删除', delCred.status, 400);
+const recsB = (await req('GET', '/api/domains')).json.domains.filter((d) => d.group_id === gB);
+for (const r of recsB) await req('DELETE', `/api/domains/${r.id}`);
+const delCred2 = await req('DELETE', `/api/credentials/${cred}`);
+check('解除引用后凭据可删除', delCred2.status, 200);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

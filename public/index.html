@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="zh-CN" data-page-node-id="WxTtjScrqB8nrXV8nYZSFV">
-<head data-page-node-id="NXY2wRYWc1BkGt8E4hQwet">
-<meta charset="utf-8" data-page-node-id="IE1n5Rov2EkuQWuLSHeYLA" />
-<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="Bn7ym9fNNSjQ85F6YalfJw" />
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>多机轮换解析调度器</title>
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --line:#e4e7ec; --text:#1f2430; --muted:#6b7280; --primary:#2f6fed; --ok:#0f9960; --warn:#c47f17; --err:#d64545; }
@@ -13,52 +13,56 @@
   .spacer { flex:1; }
   input, select, button { font:inherit; }
   input[type=text], input[type=number], input[type=password], select { padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  input:focus, select:focus { outline:none; border-color:var(--primary); }
   .btn { padding:6px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; }
   .btn:hover { border-color:var(--primary); color:var(--primary); }
   .btn.primary { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .btn.primary:hover { opacity:.9; color:#fff; }
   .btn.danger { color:var(--err); }
   .btn.sm { padding:3px 8px; font-size:12px; }
+  .btn:disabled { opacity:.55; cursor:not-allowed; }
   nav { display:flex; gap:4px; padding:10px 20px 0; flex-wrap:wrap; }
   nav button { border:none; background:transparent; padding:8px 14px; border-radius:8px 8px 0 0; cursor:pointer; color:var(--muted); }
   nav button.on { background:#fff; color:var(--text); font-weight:600; box-shadow:0 -1px 0 var(--line) inset; }
   main { padding:16px 20px 60px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:14px; overflow-x:auto; }
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px; }
   table { width:100%; border-collapse:collapse; }
-  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap; }
   th { color:var(--muted); font-weight:500; font-size:12px; }
   .muted { color:var(--muted); }
-  .tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; background:#eef2ff; color:#33408f; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; background:#eef2ff; color:#33408f; white-space:nowrap; }
   .tag.ok { background:#e6f6ee; color:var(--ok); }
   .tag.warn { background:#fdf3e2; color:var(--warn); }
   .tag.err { background:#fdecec; color:var(--err); }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .kv { display:grid; grid-template-columns:120px 1fr; gap:4px 10px; }
+  .kv { display:grid; grid-template-columns:110px 1fr; gap:4px 10px; align-items:baseline; }
   .modal { position:fixed; inset:0; background:rgba(15,20,30,.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
   .modal-box { background:#fff; border-radius:12px; padding:18px; width:min(560px,100%); max-height:86vh; overflow:auto; }
   .modal-box h3 { margin:0 0 12px; font-size:15px; }
   .fld { margin-bottom:10px; }
   .fld label { display:block; font-size:12px; color:var(--muted); margin-bottom:3px; }
   .fld input, .fld select { width:100%; }
-  .fld .hint { font-size:11px; color:var(--muted); }
+  .fld .hint { font-size:11px; color:var(--muted); margin-top:2px; }
   .toast { position:fixed; right:18px; bottom:18px; background:#1f2430; color:#fff; padding:10px 14px; border-radius:8px; z-index:99; max-width:80vw; }
   code { background:#f0f2f5; padding:1px 5px; border-radius:4px; }
+  @media (max-width:640px){ header{padding:10px 12px} nav,main{padding-left:12px;padding-right:12px} .kv{grid-template-columns:96px 1fr} }
 </style>
 </head>
-<body data-page-node-id="cqcvzeLrwbDhNKoADZXfa0">
-<header data-page-node-id="AHkcClwcCgYMsON9esrDl7">
-  <h1 data-page-node-id="dr9xuULTaqUGhLbAhOJNpB">多机轮换解析调度器</h1>
-  <span class="muted" id="status" data-page-node-id="EAdDJs5E981HNloEFpJ3mQ"></span>
-  <div class="spacer" data-page-node-id="TKIl6ALgYu2t4Bo8E0wBR5"></div>
-  <input type="password" id="token" placeholder="ADMIN_TOKEN" style="width:200px" data-page-node-id="ySsZZhkmQdwvBGsmfN5EKE" />
-  <button class="btn" id="btn-save-token" data-page-node-id="ZaPhWhFMJ2JmfCxkATqpMJ">保存令牌</button>
-  <button class="btn primary" id="btn-sync" data-page-node-id="khH8QHjmp0X8VB8OwfFErR">立即同步</button>
-  <button class="btn" id="btn-force" data-page-node-id="PpVDyW0h0qhLaK3p6qlOuC">强制同步</button>
-  <button class="btn" id="btn-reload" data-page-node-id="ILqcuNVSUEAQm7MNZoijD8">刷新</button>
+<body>
+<header>
+  <h1>多机轮换解析调度器</h1>
+  <span class="muted" id="status"></span>
+  <div class="spacer"></div>
+  <input type="password" id="token" placeholder="管理密码（ADMIN_TOKEN）" style="width:210px" />
+  <button class="btn" id="btn-save-token">登录</button>
+  <button class="btn primary" id="btn-sync">立即同步</button>
+  <button class="btn" id="btn-force">强制同步</button>
+  <button class="btn" id="btn-reload">刷新</button>
 </header>
 
-<nav id="tabs" data-page-node-id="An26JTvJCHDS3RvVxHgDT8"></nav>
-<main id="app" data-page-node-id="ekmLa5DVexTHNPp1QGAWtG"></main>
+<nav id="tabs"></nav>
+<main id="app"></main>
 
 <script>
 const $ = (s) => document.querySelector(s);
@@ -66,11 +70,27 @@ const TABS = [
   ['overview', '概览'], ['machines', '机器'], ['groups', '分组排班'],
   ['domains', '解析记录'], ['creds', 'DNS 凭据'], ['logs', '日志'],
 ];
+const MODE_LABELS = { window: '按在线时段', rotate: '按天轮转', static: '固定首台' };
+const LEVEL_LABELS = { info: '信息', warn: '警告', error: '错误' };
 let TOKEN = localStorage.getItem('dr_token') || '';
 let TAB = 'overview';
 let DATA = null, META = null;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const modeLabel = (m) => MODE_LABELS[m] || m;
+const levelLabel = (l) => LEVEL_LABELS[l] || l;
+const fullDomain = (r) => (r.record_name === '@' ? r.domain : r.record_name + '.' + r.domain);
+// SQLite datetime('now') 存的是 UTC，补 Z 转本地时区显示
+function fmtTime(s) {
+  if (!s) return '—';
+  const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+  return isNaN(d) ? esc(s) : d.toLocaleString('zh-CN', { hour12: false });
+}
+function fmtIn(mins) {
+  const m = Math.max(0, Number(mins) || 0);
+  return m >= 60 ? `${Math.floor(m / 60)} 小时 ${m % 60} 分` : `${m} 分钟`;
+}
+function safeJson(s) { try { return JSON.parse(s || '{}'); } catch { return {}; } }
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -96,20 +116,23 @@ async function load() {
   try {
     const [ov, meta] = await Promise.all([api('/api/overview'), api('/api/meta')]);
     DATA = ov; META = meta;
-    $('#status').textContent = '已连接 · ' + new Date(ov.now).toLocaleString('zh-CN');
+    $('#status').textContent = '已连接 · ' + new Date(ov.now).toLocaleString('zh-CN', { hour12: false });
     render();
   } catch (e) {
     $('#status').textContent = '连接失败：' + e.message;
-    toast('加载失败：' + e.message, true);
-    if (!DATA) { // 未部署/无后端时仍渲染界面骨架，便于本地预览
+    if (!DATA) { // 未登录/无后端时渲染骨架，保证界面可操作
       DATA = { groups: [], machines: [], credentials: [], logs: [] };
-      META = { providers: [], modes: [{ key: 'window', label: 'window' }, { key: 'rotate', label: 'rotate' }, { key: 'static', label: 'static' }], timezones: ['Asia/Shanghai'] };
+      META = {
+        providers: [],
+        modes: Object.entries(MODE_LABELS).map(([key, label]) => ({ key, label })),
+        timezones: ['Asia/Shanghai'],
+      };
       render();
     }
   }
 }
 
-/* ---------- 通用表单弹窗 ---------- */
+/* ---------- 通用表单弹窗（支持按条件显隐字段、Esc 关闭） ---------- */
 function modal(title, fields, values = {}) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
@@ -118,7 +141,7 @@ function modal(title, fields, values = {}) {
       <div class="fld">
         <label>${esc(f.label)}</label>
         ${f.type === 'select'
-          ? `<select data-k="${f.key}">${f.options.map((o) => `<option value="${esc(o.value ?? o)}" ${String(values[f.key] ?? '') === String(o.value ?? o) ? 'selected' : ''}>${esc(o.label ?? o)}</option>`).join('')}</select>`
+          ? `<select data-k="${f.key}">${(f.options || []).map((o) => `<option value="${esc(o.value ?? o)}" ${String(values[f.key] ?? '') === String(o.value ?? o) ? 'selected' : ''}>${esc(o.label ?? o)}</option>`).join('')}</select>`
           : f.type === 'checkbox'
             ? `<input type="checkbox" data-k="${f.key}" ${values[f.key] ? 'checked' : ''} />`
             : `<input type="${f.type || 'text'}" data-k="${f.key}" value="${esc(values[f.key] ?? '')}" placeholder="${esc(f.placeholder || '')}" />`}
@@ -130,29 +153,48 @@ function modal(title, fields, values = {}) {
       </div></div>`;
     document.body.appendChild(wrap);
     const close = () => { wrap.remove(); resolve(null); };
-    wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
-    wrap.querySelector('[data-act=cancel]').onclick = close;
-    wrap.querySelector('[data-act=ok]').onclick = () => {
-      const out = {};
+    const getVal = () => {
+      const v = {};
       fields.forEach((f) => {
         const el = wrap.querySelector(`[data-k="${f.key}"]`);
-        out[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? Number(el.value) : el.value);
+        v[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? Number(el.value) : el.value);
       });
-      wrap.remove(); resolve(out);
+      return v;
     };
+    const applyShow = () => {
+      const v = getVal();
+      fields.forEach((f) => {
+        const box = wrap.querySelector(`[data-k="${f.key}"]`)?.closest('.fld');
+        if (box) box.style.display = (!f.showIf || f.showIf(v)) ? '' : 'none';
+      });
+    };
+    applyShow();
+    fields.forEach((f) => {
+      const el = wrap.querySelector(`[data-k="${f.key}"]`);
+      if (el && f.showIf) el.addEventListener('change', applyShow);
+    });
+    const onKey = (e) => { if (e.key === 'Escape') { cleanup(); close(); } };
+    const cleanup = () => document.removeEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey);
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) { cleanup(); close(); } });
+    wrap.querySelector('[data-act=cancel]').onclick = () => { cleanup(); close(); };
+    wrap.querySelector('[data-act=ok]').onclick = () => { cleanup(); wrap.remove(); resolve(getVal()); };
   });
 }
 
-async function guard(fn) {
-  try { await fn(); await load(); } catch (e) { toast(e.message, true); }
+async function guard(fn, btn) {
+  let t;
+  if (btn) { btn.disabled = true; t = btn.textContent; btn.textContent = '处理中…'; }
+  try { await fn(); await load(); }
+  catch (e) { toast(e.message, true); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = t; } }
 }
 
 /* ---------- 渲染 ---------- */
 function render() {
   $('#tabs').innerHTML = TABS.map(([k, label]) => `<button class="${k === TAB ? 'on' : ''}" data-tab="${k}">${label}</button>`).join('');
   $('#tabs').querySelectorAll('button').forEach((b) => (b.onclick = () => { TAB = b.dataset.tab; render(); }));
-  const app = $('#app');
-  app.innerHTML = { overview: viewOverview, machines: viewMachines, groups: viewGroups, domains: viewDomains, creds: viewCreds, logs: viewLogs }[TAB]();
+  $('#app').innerHTML = { overview: viewOverview, machines: viewMachines, groups: viewGroups, domains: viewDomains, creds: viewCreds, logs: viewLogs }[TAB]();
   bind();
 }
 
@@ -164,30 +206,31 @@ function bind() {
 }
 
 function viewOverview() {
-  if (!DATA.groups.length) return `<div class="card">还没有分组。去「分组排班」新建分组，把 2-3 台机器和一个域名绑在一起。</div>`;
+  if (!DATA.groups.length) return `<div class="card">还没有分组。建议流程：<b>① 机器</b> 录入服务器 → <b>② DNS 凭据</b> 填厂商密钥 → <b>③ 分组排班</b> 建分组并绑定域名。</div>`;
   return `<div class="grid">` + DATA.groups.map((g) => `
     <div class="card">
-      <div class="row"><strong>${esc(g.name)}</strong> <span class="tag">${esc(g.mode)}</span>
+      <div class="row"><strong>${esc(g.name)}</strong> <span class="tag">${modeLabel(g.mode)}</span>
         ${g.enabled ? '' : '<span class="tag warn">已停用</span>'}</div>
       <div class="kv" style="margin-top:8px">
-        <span class="muted">当前指向</span><span>${g.target.ip ? `<strong>${esc(g.target.name || '兜底IP')}</strong> · <code>${esc(g.target.ip)}</code>` : '<span class="tag err">无可用 IP</span>'}</span>
+        <span class="muted">当前指向</span><span>${g.target.ip ? `<strong>${esc(g.target.name || '兜底 IP')}</strong> · <code>${esc(g.target.ip)}</code>` : '<span class="tag err">无可用 IP</span>'}</span>
         <span class="muted">判定依据</span><span>${esc(g.target.reason)}</span>
         <span class="muted">在线机器</span><span>${g.online.length ? esc(g.online.join('、')) : '—'}</span>
-        <span class="muted">下次变化</span><span>${g.next ? `${esc(g.next.kind)} · ${Math.floor(g.next.inMinutes / 60)} 小时 ${g.next.inMinutes % 60} 分后` : '—'}</span>
-        <span class="muted">时区/切换</span><span>${esc(g.timezone)}${g.mode === 'rotate' ? ' · 每日 ' + esc(g.switch_time) : ''}</span>
+        <span class="muted">下次变化</span><span>${g.next ? `${esc(g.next.kind)} · ${fmtIn(g.next.inMinutes)}后（${fmtTime(g.next.at)}）` : '—'}</span>
+        <span class="muted">时区 / 切换</span><span>${esc(g.timezone)}${g.mode === 'rotate' ? ' · 每日 ' + esc(g.switch_time) : ''}</span>
       </div>
       <table style="margin-top:10px">
         ${g.records.map((r) => `<tr>
-          <td>${esc(r.record_name === '@' ? r.domain : r.record_name + '.' + r.domain)}</td>
-          <td>${esc(r.provider)}${r.enabled ? '' : ' <span class="tag warn">停用</span>'}</td>
+          <td>${esc(fullDomain(r))}</td>
+          <td class="muted">${esc(r.provider)}${r.enabled ? '' : ' <span class="tag warn">停用</span>'}</td>
           <td>${r.current ? `<code>${esc(r.current)}</code>` : '<span class="muted">未同步</span>'}</td>
           <td>${r.current && r.current === g.target.ip ? '<span class="tag ok">一致</span>' : '<span class="tag warn">待同步</span>'}</td>
         </tr>`).join('') || '<tr><td class="muted">该分组还没有解析记录</td></tr>'}
       </table>
       <div class="row" style="margin-top:10px">
-        <button class="btn sm" data-act="sync-group" data-id="${g.id}">同步本组</button>
-        <button class="btn sm" data-act="edit-group" data-id="${g.id}">编辑分组</button>
+        <button class="btn sm primary" data-act="sync-group" data-id="${g.id}">同步本组</button>
+        <button class="btn sm" data-act="edit-group" data-id="${g.id}">编辑</button>
         <button class="btn sm" data-act="edit-members" data-id="${g.id}">排班/成员</button>
+        <button class="btn sm" data-act="preview-group" data-id="${g.id}">7 天预览</button>
         <button class="btn sm" data-act="add-domain" data-id="${g.id}">+ 解析记录</button>
       </div>
     </div>`).join('') + `</div>`;
@@ -202,7 +245,7 @@ function viewMachines() {
       <td>${esc(m.name)}</td><td><code>${esc(m.ip || '—')}</code></td><td class="muted">${esc(m.note)}</td>
       <td>${m.enabled ? '<span class="tag ok">启用</span>' : '<span class="tag">停用</span>'}</td>
       <td class="row"><button class="btn sm" data-act="edit-machine" data-id="${m.id}">编辑</button>
-      <button class="btn sm danger" data-act="del-machine" data-id="${m.id}">删除</button></td></tr>`).join('') || '<tr><td class="muted">还没有机器</td></tr>'}
+      <button class="btn sm danger" data-act="del-machine" data-id="${m.id}">删除</button></td></tr>`).join('') || '<tr><td class="muted">还没有机器，点右上角「新增机器」开始</td></tr>'}
     </table>
     <div class="hint muted" style="margin-top:8px">机器开关机由你在云厂商控制台/定时脚本控制，这里只需填 IP 与排班时段。</div>
   </div>`;
@@ -212,15 +255,16 @@ function viewGroups() {
   return `<div class="card">
     <div class="row" style="margin-bottom:8px"><strong>分组</strong><div class="spacer"></div>
     <button class="btn primary sm" data-act="add-group">+ 新增分组</button></div>
-    <table><tr><th>分组</th><th>模式</th><th>机器</th><th>域名记录</th><th>兜底IP</th><th></th></tr>
+    <table><tr><th>分组</th><th>模式</th><th>机器</th><th>域名记录</th><th>兜底 IP</th><th></th></tr>
     ${DATA.groups.map((g) => `<tr>
       <td><strong>${esc(g.name)}</strong><div class="muted" style="font-size:12px">${esc(g.timezone)}${g.mode === 'rotate' ? ' · 每日 ' + esc(g.switch_time) + ' 切换' : ''}</div></td>
-      <td><span class="tag">${esc(g.mode)}</span></td>
+      <td><span class="tag">${modeLabel(g.mode)}</span></td>
       <td>${g.members.map((m) => `${esc(m.name)}${g.mode === 'window' ? ` (${esc(m.window_start)}-${esc(m.window_end)})` : ''}`).join('<br>') || '<span class="muted">未添加</span>'}</td>
-      <td>${g.records.map((r) => esc(r.record_name === '@' ? r.domain : r.record_name + '.' + r.domain)).join('<br>') || '<span class="muted">未添加</span>'}</td>
+      <td>${g.records.map((r) => esc(fullDomain(r))).join('<br>') || '<span class="muted">未添加</span>'}</td>
       <td><code>${esc(g.fallback_ip || '—')}</code></td>
       <td class="row"><button class="btn sm" data-act="edit-group" data-id="${g.id}">编辑</button>
       <button class="btn sm" data-act="edit-members" data-id="${g.id}">排班</button>
+      <button class="btn sm" data-act="preview-group" data-id="${g.id}">7 天预览</button>
       <button class="btn sm danger" data-act="del-group" data-id="${g.id}">删除</button></td></tr>`).join('') || '<tr><td class="muted">还没有分组</td></tr>'}
     </table></div>`;
 }
@@ -233,8 +277,10 @@ function viewDomains() {
     <table><tr><th>分组</th><th>域名 / 主机记录</th><th>厂商</th><th>凭据</th><th>TTL</th><th>当前值</th><th></th></tr>
     ${rows.map((r) => `<tr>
       <td>${esc(r.gname)}</td>
-      <td><code>${esc(r.record_name === '@' ? r.domain : r.record_name + '.' + r.domain)}</code>${r.proxied ? ' <span class="tag">代理</span>' : ''}</td>
-      <td>${esc(r.provider)}</td><td>${esc(r.cred_name || '—')}</td><td>${esc(r.ttl)}</td>
+      <td><code>${esc(fullDomain(r))}</code>${r.proxied ? ' <span class="tag">橙云代理</span>' : ''}</td>
+      <td>${esc(r.provider)}</td>
+      <td>${r.cred_name ? esc(r.cred_name) : '<span class="tag warn">未绑定凭据</span>'}</td>
+      <td>${esc(r.ttl)}</td>
       <td>${r.current ? `<code>${esc(r.current)}</code>` : '<span class="muted">—</span>'}</td>
       <td class="row"><button class="btn sm" data-act="edit-domain" data-id="${r.id}">编辑</button>
       <button class="btn sm danger" data-act="del-domain" data-id="${r.id}">删除</button></td></tr>`).join('') || '<tr><td class="muted">还没有解析记录</td></tr>'}
@@ -245,13 +291,13 @@ function viewCreds() {
   return `<div class="card">
     <div class="row" style="margin-bottom:8px"><strong>DNS 凭据</strong><div class="spacer"></div>
     <button class="btn primary sm" data-act="add-cred">+ 新增凭据</button></div>
-    <table><tr><th>名称</th><th>厂商</th><th>配置</th><th></th></tr>
+    <table><tr><th>名称</th><th>厂商</th><th>已填字段</th><th></th></tr>
     ${DATA.credentials.map((c) => `<tr>
-      <td>${esc(c.name)}</td><td>${esc(META.providers.find((p) => p.key === c.provider)?.label || c.provider)}</td>
+      <td>${esc(c.name)}</td><td>${esc((META.providers || []).find((p) => p.key === c.provider)?.label || c.provider)}</td>
       <td class="muted">${esc(Object.keys(safeJson(c.config)).join('、'))}</td>
       <td class="row"><button class="btn sm" data-act="edit-cred" data-id="${c.id}">编辑</button>
       <button class="btn sm" data-act="test-cred" data-id="${c.id}">连通测试</button>
-      <button class="btn sm danger" data-act="del-cred" data-id="${c.id}">删除</button></td></tr>`).join('') || '<tr><td class="muted">还没有凭据</td></tr>'}
+      <button class="btn sm danger" data-act="del-cred" data-id="${c.id}">删除</button></td></tr>`).join('') || '<tr><td class="muted">还没有凭据。凭据 = 各 DNS 厂商的 API 密钥，可被多条解析记录复用</td></tr>'}
     </table></div>`;
 }
 
@@ -259,22 +305,67 @@ function viewLogs() {
   return `<div class="card">
     <div class="row" style="margin-bottom:8px"><strong>最近日志</strong><div class="spacer"></div>
     <button class="btn sm danger" data-act="clear-logs">清空</button></div>
-    <table><tr><th style="width:150px">时间</th><th style="width:80px">级别</th><th>内容</th></tr>
-    ${DATA.logs.map((l) => `<tr><td class="muted">${esc(l.ts)}</td>
-      <td><span class="tag ${l.level === 'error' ? 'err' : l.level === 'warn' ? 'warn' : ''}">${esc(l.level)}</span></td>
+    <table><tr><th style="width:150px">时间</th><th style="width:70px">级别</th><th>内容</th></tr>
+    ${DATA.logs.map((l) => `<tr><td class="muted">${fmtTime(l.ts)}</td>
+      <td><span class="tag ${l.level === 'error' ? 'err' : l.level === 'warn' ? 'warn' : 'ok'}">${levelLabel(l.level)}</span></td>
       <td>${esc(l.message)}</td></tr>`).join('') || '<tr><td class="muted">暂无日志</td></tr>'}
     </table></div>`;
 }
 
-function safeJson(s) { try { return JSON.parse(s || '{}'); } catch { return {}; } }
+/* ---------- DNS 凭据：一步式弹窗（选厂商即切换字段） ---------- */
+function credModal(existing) {
+  return new Promise((resolve) => {
+    const providers = META.providers || [];
+    const wrap = document.createElement('div');
+    wrap.className = 'modal';
+    wrap.innerHTML = `<div class="modal-box"><h3>${existing ? '编辑凭据' : '新增 DNS 凭据'}</h3>
+      ${providers.length ? '' : '<div class="tag warn" style="margin-bottom:10px">厂商列表加载失败，请刷新页面后重试</div>'}
+      <div class="fld"><label>凭据名称</label>
+        <input data-k="name" value="${esc(existing?.name || '')}" placeholder="如 CF-主账号 / 阿里云-解析专用" /></div>
+      <div class="fld"><label>DNS 厂商</label>
+        <select data-k="provider">${providers.map((p) => `<option value="${esc(p.key)}" ${existing?.provider === p.key ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></div>
+      <div id="cred-fields"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:6px">
+        <button class="btn" data-a="cancel">取消</button>
+        <button class="btn primary" data-a="ok">保存</button>
+      </div></div>`;
+    document.body.appendChild(wrap);
+    const close = (v) => { wrap.remove(); resolve(v); };
+
+    const renderFields = () => {
+      const key = wrap.querySelector('[data-k=provider]').value;
+      const p = providers.find((x) => x.key === key);
+      const cfg = existing ? safeJson(existing.config) : {};
+      const fs = p?.fields || [];
+      wrap.querySelector('#cred-fields').innerHTML = (fs.length ? fs.map((f) => `
+        <div class="fld"><label>${esc(f.label)}</label>
+          <input type="${f.secret ? 'password' : 'text'}" data-f="${esc(f.key)}" value="${esc(cfg[f.key] || '')}" autocomplete="off" />
+          ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}</div>`).join('')
+        : '<div class="muted" style="font-size:12px">该厂商无需密钥（演练模式：只计算排班、写日志，不下发解析）。</div>');
+    };
+    renderFields();
+    wrap.querySelector('[data-k=provider]').onchange = renderFields;
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) close(null); });
+    wrap.querySelector('[data-a=cancel]').onclick = () => close(null);
+    wrap.querySelector('[data-a=ok]').onclick = () => {
+      const name = wrap.querySelector('[data-k=name]').value.trim();
+      const provider = wrap.querySelector('[data-k=provider]').value;
+      if (!name) return toast('请填写凭据名称', true);
+      if (!provider) return toast('请选择 DNS 厂商', true);
+      const config = {};
+      wrap.querySelectorAll('[data-f]').forEach((el) => { config[el.dataset.f] = el.value.trim(); });
+      close({ name, provider, config });
+    };
+  });
+}
 
 /* ---------- 操作 ---------- */
 const handlers = {
   'add-machine': () => guard(async () => {
     const v = await modal('新增机器', [
       { key: 'name', label: '名称', placeholder: '如 HK-01' },
-      { key: 'ip', label: '公网 IP', placeholder: '1.2.3.4' },
-      { key: 'note', label: '备注' },
+      { key: 'ip', label: '公网 IP', placeholder: '1.2.3.4', hint: 'IPv4 格式；建议使用固定 IP / 弹性 IP' },
+      { key: 'note', label: '备注（可选）' },
       { key: 'enabled', label: '启用', type: 'checkbox' },
     ], { enabled: true });
     if (v) await api('/api/machines', { method: 'POST', body: v });
@@ -287,18 +378,19 @@ const handlers = {
     ], { ...m, enabled: !!m.enabled });
     if (v) await api('/api/machines/' + id, { method: 'PUT', body: v });
   }),
-  'del-machine': (id) => guard(async () => { if (confirm('删除该机器？')) await api('/api/machines/' + id, { method: 'DELETE' }); }),
+  'del-machine': (id) => guard(async () => { if (confirm('删除该机器？其在全部分组中的排班也会一并移除。')) await api('/api/machines/' + id, { method: 'DELETE' }); }),
 
   'add-group': () => guard(async () => {
     const v = await modal('新增分组', groupFields(), { mode: 'window', timezone: 'Asia/Shanghai', switch_time: '03:00', anchor_date: '1970-01-01', enabled: true });
     if (v) await api('/api/groups', { method: 'POST', body: v });
+    if (v) toast('分组已创建。下一步：点「排班」勾选成员，再添加解析记录。');
   }),
   'edit-group': (id) => guard(async () => {
     const g = DATA.groups.find((x) => String(x.id) === String(id));
     const v = await modal('编辑分组', groupFields(), { ...g, enabled: !!g.enabled });
     if (v) await api('/api/groups/' + id, { method: 'PUT', body: v });
   }),
-  'del-group': (id) => guard(async () => { if (confirm('删除该分组及其记录？')) await api('/api/groups/' + id, { method: 'DELETE' }); }),
+  'del-group': (id) => guard(async () => { if (confirm('删除该分组？其下解析记录与排班将一并删除。')) await api('/api/groups/' + id, { method: 'DELETE' }); }),
 
   'edit-members': (id) => guard(async () => {
     const g = DATA.groups.find((x) => String(x.id) === String(id));
@@ -306,16 +398,17 @@ const handlers = {
     wrap.className = 'modal';
     wrap.innerHTML = `<div class="modal-box"><h3>${esc(g.name)} · 排班与成员</h3>
       <div class="hint muted" style="margin-bottom:8px">${g.mode === 'rotate'
-        ? '轮转模式：按 sort_order 每天轮流，时段可留空。'
-        : '时段模式：填写每台机器的在线时段（与你在云厂商设置的开机时间一致），支持跨天如 22:00 → 06:00。'}</div>
-      <table><tr><th>加入</th><th>机器</th><th>开始</th><th>结束</th></tr>
+        ? '按天轮转：勾选的机器按列表顺序每天轮流值班，时段可忽略。'
+        : '按在线时段：勾选机器并填写在线时段（与云厂商设置的开机时间一致），支持跨天如 22:00 → 06:00。'}</div>
+      <table><tr><th>加入</th><th>机器</th><th>在线开始</th><th>在线结束</th></tr>
       ${DATA.machines.map((m) => {
         const cur = g.members.find((x) => String(x.machine_id) === String(m.id));
         return `<tr><td><input type="checkbox" data-mid="${m.id}" ${cur ? 'checked' : ''} /></td>
           <td>${esc(m.name)} <span class="muted">${esc(m.ip)}</span></td>
-          <td><input type="text" data-start="${m.id}" value="${esc(cur?.window_start || '00:00')}" style="width:70px" /></td>
-          <td><input type="text" data-end="${m.id}" value="${esc(cur?.window_end || '23:59')}" style="width:70px" /></td></tr>`;
+          <td><input type="text" data-start="${m.id}" value="${esc(cur?.window_start || '00:00')}" style="width:80px" placeholder="08:00" /></td>
+          <td><input type="text" data-end="${m.id}" value="${esc(cur?.window_end || '23:59')}" style="width:80px" placeholder="20:00" /></td></tr>`;
       }).join('')}</table>
+      ${DATA.machines.length ? '' : '<div class="muted" style="margin:8px 0">还没有机器，请先到「机器」页新增。</div>'}
       <div class="row" style="justify-content:flex-end;margin-top:12px">
         <button class="btn" data-act2="cancel">取消</button><button class="btn primary" data-act2="ok">保存</button></div></div>`;
     document.body.appendChild(wrap);
@@ -338,7 +431,27 @@ const handlers = {
     };
   }),
 
+  'preview-group': (id) => guard(async () => {
+    const r = await api('/api/preview?group_id=' + id);
+    const p = (r.preview || [])[0];
+    if (!p) return toast('预览失败：分组不存在', true);
+    const wrap = document.createElement('div');
+    wrap.className = 'modal';
+    wrap.innerHTML = `<div class="modal-box"><h3>${esc(p.group)} · 未来 7 天排班预览</h3>
+      <div class="hint muted" style="margin-bottom:8px">模式：${esc(MODE_LABELS[p.mode] || p.mode || '')} · 时区 ${esc(p.timezone)}</div>
+      <table><tr><th>日期</th><th>值班机器</th><th>解析 IP</th><th>判定依据</th></tr>
+      ${p.plan.map((d) => `<tr><td>${esc(d.date)}</td>
+        <td>${d.machine ? `<strong>${esc(d.machine)}</strong>` : '<span class="tag warn">无</span>'}</td>
+        <td><code>${esc(d.ip || '—')}</code></td>
+        <td class="muted">${esc(d.reason)}</td></tr>`).join('')}</table>
+      <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" data-act2="close">关闭</button></div></div>`;
+    document.body.appendChild(wrap);
+    wrap.querySelector('[data-act2=close]').onclick = () => wrap.remove();
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
+  }),
+
   'add-domain': (id) => guard(async () => {
+    if (!DATA.groups.length) return toast('请先创建分组', true);
     const v = await modal('新增解析记录', domainFields(), { group_id: id || '', record_name: '@', record_type: 'A', ttl: 600, enabled: true, proxied: false });
     if (v) await api('/api/domains', { method: 'POST', body: v });
   }),
@@ -350,77 +463,82 @@ const handlers = {
   'del-domain': (id) => guard(async () => { if (confirm('删除该解析记录？')) await api('/api/domains/' + id, { method: 'DELETE' }); }),
 
   'add-cred': () => guard(async () => {
-    const provider = await modal('选择 DNS 厂商', [
-      { key: 'name', label: '凭据名称', placeholder: '如 CF-主账号' },
-      { key: 'provider', label: '厂商', type: 'select', options: META.providers.map((p) => ({ value: p.key, label: p.label })) },
-    ], { provider: 'cloudflare' });
-    if (!provider) return;
-    const fields = META.providers.find((p) => p.key === provider.provider).fields
-      .map((f) => ({ key: f.key, label: f.label, type: f.secret ? 'password' : 'text', hint: f.hint }));
-    const cfg = await modal('填写 ' + provider.provider + ' 凭据', fields);
-    if (!cfg) return;
-    await api('/api/credentials', { method: 'POST', body: { name: provider.name, provider: provider.provider, config: cfg } });
+    const v = await credModal(null);
+    if (v) await api('/api/credentials', { method: 'POST', body: v });
   }),
   'edit-cred': (id) => guard(async () => {
     const c = (await api('/api/credentials')).credentials.find((x) => String(x.id) === String(id));
-    const fields = (META.providers.find((p) => p.key === c.provider)?.fields || [])
-      .map((f) => ({ key: f.key, label: f.label, type: f.secret ? 'password' : 'text', hint: f.hint }));
-    const v = await modal('编辑凭据', [{ key: 'name', label: '名称' }, ...fields], { name: c.name, ...safeJson(c.config) });
-    if (!v) return;
-    const { name, ...config } = v;
-    await api('/api/credentials/' + id, { method: 'PUT', body: { name, config } });
+    if (!c) return;
+    const v = await credModal(c);
+    if (v) await api('/api/credentials/' + id, { method: 'PUT', body: v });
   }),
-  'del-cred': (id) => guard(async () => { if (confirm('删除该凭据？')) await api('/api/credentials/' + id, { method: 'DELETE' }); }),
+  'del-cred': (id) => guard(async () => { if (confirm('删除该凭据？（被解析记录引用时会被拒绝）')) await api('/api/credentials/' + id, { method: 'DELETE' }); }),
   'test-cred': (id) => guard(async () => {
-    const v = await modal('连通测试', [
-      { key: 'domain', label: '域名', placeholder: 'example.com' },
+    const v = await modal('凭据连通测试', [
+      { key: 'domain', label: '域名', placeholder: 'example.com', hint: '用该凭据查询这条记录的当前解析值，验证密钥是否可用' },
       { key: 'record_name', label: '主机记录', placeholder: '@' },
-      { key: 'record_id', label: '记录ID（可选，留空自动查询）' },
-      { key: 'zone_id', label: 'ZoneID（仅 Cloudflare，可选）' },
+      { key: 'zone_id', label: 'Zone ID（仅 Cloudflare，可选）' },
     ], { record_name: '@' });
     if (!v) return;
     const r = await api('/api/credentials/' + id + '/test', { method: 'POST', body: v });
-    toast('查询成功：record_id=' + (r.recordId || '未找到') + ' 当前值=' + (r.content || '空'));
+    toast('✓ 密钥可用：' + (r.recordId ? '记录已存在，' : '记录尚未创建，') + '当前值=' + (r.content || '空'));
   }),
 
-  'sync-group': (id) => guard(async () => {
+  'sync-group': (id, el) => guard(async () => {
     const r = await api('/api/sync', { method: 'POST', body: { group_id: Number(id), force: true } });
-    toast(r.results[0]?.results?.map((x) => x.domain + ':' + x.message).join(' | ') || '完成');
-  }),
+    const msg = (r.results?.[0]?.results || []).map((x) => x.domain + '：' + x.message).join('；');
+    toast(msg || '完成');
+  }, el),
+
   'clear-logs': () => guard(async () => { if (confirm('清空全部日志？')) await api('/api/logs/clear', { method: 'POST' }); }),
 };
 
 function groupFields() {
   return [
     { key: 'name', label: '分组名称', placeholder: '如 游戏服-A组' },
-    { key: 'mode', label: '排班模式', type: 'select', options: META.modes.map((m) => ({ value: m.key, label: m.label })) },
+    { key: 'mode', label: '排班模式', type: 'select', options: (META.modes || []).map((m) => ({ value: m.key, label: m.label || m.key })) },
     { key: 'timezone', label: '时区', type: 'select', options: META.timezones },
-    { key: 'switch_time', label: '每日切换时刻（rotate 模式）', placeholder: '03:00', hint: '在此时刻之前仍使用前一天的值班机器' },
-    { key: 'anchor_date', label: '轮转基准日（rotate 模式）', placeholder: '1970-01-01' },
-    { key: 'fallback_ip', label: '兜底 IP', hint: '所有机器都不在线时解析到此 IP' },
+    { key: 'switch_time', label: '每日切换时刻', placeholder: '03:00', hint: '切换时刻之前仍沿用前一天的值班机器', showIf: (v) => v.mode === 'rotate' },
+    { key: 'anchor_date', label: '轮转基准日', placeholder: '1970-01-01', hint: '轮换从该日起算（1970-01-01 表示从组内第 1 台开始），一般不用改', showIf: (v) => v.mode === 'rotate' },
+    { key: 'fallback_ip', label: '兜底 IP（可选）', placeholder: '所有机器都不在线时解析到这里', hint: '留空则无机器在线时保持上一次解析不变' },
     { key: 'enabled', label: '启用', type: 'checkbox' },
   ];
 }
 
 function domainFields() {
+  const credOpts = DATA.credentials.map((c) => ({ value: c.id, label: c.name + '（' + c.provider + '）' }));
+  if (!credOpts.length) credOpts.unshift({ value: '', label: '（还没有凭据，请先到「DNS 凭据」新建）' });
   return [
     { key: 'group_id', label: '所属分组', type: 'select', options: DATA.groups.map((g) => ({ value: g.id, label: g.name })) },
-    { key: 'credential_id', label: 'DNS 凭据', type: 'select', options: DATA.credentials.map((c) => ({ value: c.id, label: c.name + ' (' + c.provider + ')' })) },
-    { key: 'provider', label: '厂商', type: 'select', options: META.providers.map((p) => ({ value: p.key, label: p.label })) },
+    { key: 'provider', label: 'DNS 厂商', type: 'select', options: (META.providers || []).map((p) => ({ value: p.key, label: p.label })) },
+    { key: 'credential_id', label: '使用的凭据', type: 'select', options: credOpts, hint: DATA.credentials.length ? '' : '需要先在「DNS 凭据」页新建一条凭据' },
     { key: 'domain', label: '域名', placeholder: 'example.com' },
-    { key: 'record_name', label: '主机记录', placeholder: '@ 或 www', hint: '填 @ 表示根域名' },
-    { key: 'ttl', label: 'TTL（秒）', type: 'number' },
-    { key: 'proxied', label: 'Cloudflare 代理（橙云）', type: 'checkbox' },
-    { key: 'record_id', label: '记录 ID', hint: '留空则自动查询并回填' },
-    { key: 'zone_id', label: 'Zone ID（仅 Cloudflare）' },
+    { key: 'record_name', label: '主机记录', placeholder: '@ 或 www', hint: '@ 表示根域名本身' },
+    { key: 'ttl', label: 'TTL（秒）', type: 'number', hint: '越小生效越快；建议 60~600。Cloudflare 橙云代理时固定为 auto' },
+    { key: 'proxied', label: 'Cloudflare 橙云代理（仅 Cloudflare 厂商）', type: 'checkbox' },
+    { key: 'record_id', label: '记录 ID（可选）', hint: '留空自动查询并回填' },
+    { key: 'zone_id', label: 'Zone ID（仅 Cloudflare，可选）', hint: '留空自动查询并回填' },
     { key: 'enabled', label: '启用', type: 'checkbox' },
   ];
 }
 
-$('#btn-save-token').onclick = () => { TOKEN = $('#token').value.trim(); localStorage.setItem('dr_token', TOKEN); toast('令牌已保存'); load(); };
+$('#btn-save-token').onclick = () => {
+  TOKEN = $('#token').value.trim();
+  if (!TOKEN) return toast('请先输入管理密码（部署时设置的 ADMIN_TOKEN）', true);
+  localStorage.setItem('dr_token', TOKEN);
+  toast('已保存，正在连接…');
+  load();
+};
+$('#token').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-save-token').click(); });
 $('#btn-reload').onclick = load;
-$('#btn-sync').onclick = () => guard(async () => { const r = await api('/api/sync', { method: 'POST', body: {} }); toast('同步完成，分组 ' + r.results.length + ' 个'); });
-$('#btn-force').onclick = () => guard(async () => { const r = await api('/api/sync', { method: 'POST', body: { force: true } }); toast('强制同步完成'); });
+$('#btn-sync').onclick = (e) => guard(async () => {
+  const r = await api('/api/sync', { method: 'POST', body: {} });
+  toast('同步完成，共 ' + r.results.length + ' 个分组');
+}, e.currentTarget);
+$('#btn-force').onclick = (e) => guard(async () => {
+  await api('/api/sync', { method: 'POST', body: { force: true } });
+  toast('已强制重新下发全部解析');
+}, e.currentTarget);
 $('#token').value = TOKEN;
 load();
 </script>

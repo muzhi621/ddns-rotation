@@ -18,33 +18,35 @@ const app = new Hono();
 
 app.onError((err, c) => c.json({ error: err.message || String(err) }, 500));
 
-// 简单鉴权：设置 ADMIN_TOKEN 后，所有 /api/* 需 Bearer 令牌
-app.use('/api/*', async (c, next) => {
-  const token = c.env.ADMIN_TOKEN;
-  if (!token) return next();
-  const auth = (c.req.header('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (auth !== token) return c.json({ error: 'unauthorized' }, 401);
-  await next();
-});
-
 const int = (v, def = 0) => (Number.isFinite(Number(v)) ? Number(v) : def);
 const bool = (v, def = 1) => (v === undefined || v === null ? def : v ? 1 : 0);
+const IP4 = /^(\d{1,3}\.){3}\d{1,3}$/;
+const validIp = (ip) => !ip || (IP4.test(ip) && ip.split('.').every((n) => +n <= 255));
+const validHM = (s) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(String(s || ''));
 
-/* ---------------- 元信息 / 概览 ---------------- */
-
+// 无敏感信息，放在鉴权之前：保证未登录时管理后台也能渲染厂商/模式选项
 app.get('/api/health', (c) => c.json({ ok: true, time: new Date().toISOString() }));
 
 app.get('/api/meta', (c) =>
   c.json({
     providers: Object.entries(PROVIDER_LABELS).map(([key, label]) => ({ key, label, fields: providerFields(key) })),
     modes: [
-      { key: 'window', label: '按在线时段（每台机器设置开机时段，自动命中最匹配的机器）' },
-      { key: 'rotate', label: '按天轮转（组内机器每天轮流值班）' },
-      { key: 'static', label: '固定首台（不做轮换，仅作记录）' },
+      { key: 'window', label: '按在线时段', desc: '为每台机器填写在线时段（与云厂商开机时间一致），自动解析给时段内的机器，支持跨天' },
+      { key: 'rotate', label: '按天轮转', desc: '组内机器每天轮流值班，每日固定时刻切换' },
+      { key: 'static', label: '固定首台', desc: '始终解析给组内第一台机器，不做轮换' },
     ],
     timezones: ['Asia/Shanghai', 'Asia/Tokyo', 'Asia/Singapore', 'UTC', 'America/Los_Angeles', 'Europe/London'],
   }),
 );
+
+// 简单鉴权：设置 ADMIN_TOKEN 后，其余 /api/* 需 Bearer 令牌
+app.use('/api/*', async (c, next) => {
+  const token = c.env.ADMIN_TOKEN;
+  if (!token) return next();
+  const auth = (c.req.header('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  if (auth !== token) return c.json({ error: '未授权：请在右上角填入正确的 ADMIN_TOKEN' }, 401);
+  await next();
+});
 
 app.get('/api/overview', async (c) => {
   const now = new Date();
@@ -101,6 +103,7 @@ app.get('/api/machines', async (c) => c.json({ machines: await qAll(c.env, 'SELE
 app.post('/api/machines', async (c) => {
   const b = await c.req.json();
   if (!b.name) return c.json({ error: '名称必填' }, 400);
+  if (!validIp(String(b.ip || '').trim())) return c.json({ error: '公网 IP 格式不正确（应为 IPv4，如 1.2.3.4）' }, 400);
   const r = await qRun(
     c.env,
     'INSERT INTO machines (name, ip, note, enabled) VALUES (?, ?, ?, ?)',
@@ -115,6 +118,7 @@ app.post('/api/machines', async (c) => {
 app.put('/api/machines/:id', async (c) => {
   const id = c.req.param('id');
   const b = await c.req.json();
+  if (b.ip !== undefined && !validIp(String(b.ip).trim())) return c.json({ error: '公网 IP 格式不正确（应为 IPv4，如 1.2.3.4）' }, 400);
   await qRun(
     c.env,
     'UPDATE machines SET name = COALESCE(?, name), ip = COALESCE(?, ip), note = COALESCE(?, note), enabled = COALESCE(?, enabled) WHERE id = ?',
@@ -196,6 +200,13 @@ app.put('/api/groups/:id/members', async (c) => {
   const id = c.req.param('id');
   const b = await c.req.json();
   const items = Array.isArray(b.items) ? b.items : [];
+  for (const it of items) {
+    it.window_start = String(it.window_start || '00:00');
+    it.window_end = String(it.window_end || '23:59');
+    if (!validHM(it.window_start) || !validHM(it.window_end)) {
+      return c.json({ error: '在线时段格式应为 HH:MM（如 08:00）' }, 400);
+    }
+  }
   await qRun(c.env, 'DELETE FROM group_machines WHERE group_id = ?', id);
   const seen = new Set();
   let order = 0;
@@ -233,6 +244,10 @@ app.get('/api/domains', async (c) => {
 app.post('/api/domains', async (c) => {
   const b = await c.req.json();
   if (!b.group_id || !b.domain) return c.json({ error: '分组与域名必填' }, 400);
+  const domain = String(b.domain).trim().toLowerCase();
+  if (!/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i.test(domain)) {
+    return c.json({ error: '域名格式不正确（如 example.com）' }, 400);
+  }
   const r = await qRun(
     c.env,
     `INSERT INTO group_domains (group_id, credential_id, provider, domain, record_name, record_type, ttl, proxied, zone_id, record_id, enabled)
@@ -240,7 +255,7 @@ app.post('/api/domains', async (c) => {
     int(b.group_id),
     int(b.credential_id, 0),
     String(b.provider || 'cloudflare'),
-    String(b.domain).trim().toLowerCase(),
+    domain,
     String(b.record_name || '@'),
     String(b.record_type || 'A').toUpperCase(),
     int(b.ttl, 600),
@@ -323,7 +338,12 @@ app.put('/api/credentials/:id', async (c) => {
 });
 
 app.delete('/api/credentials/:id', async (c) => {
-  await qRun(c.env, 'DELETE FROM credentials WHERE id = ?', c.req.param('id'));
+  const id = c.req.param('id');
+  const used = await qAll(c.env, 'SELECT id, domain FROM group_domains WHERE credential_id = ?', id);
+  if (used.length) {
+    return c.json({ error: `该凭据正被 ${used.length} 条解析记录使用（如 ${used[0].domain}），请先编辑或删除这些记录` }, 400);
+  }
+  await qRun(c.env, 'DELETE FROM credentials WHERE id = ?', id);
   return c.json({ ok: true });
 });
 
