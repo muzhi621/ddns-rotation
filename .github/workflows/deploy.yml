@@ -183,15 +183,25 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: deploy-diagnostics
-      - name: 写入 / 更新 Issue
+      - name: 写入 / 更新 Issue（纯 REST，不依赖 gh CLI）
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh label create ci-log --force --description "CI 部署诊断日志" >/dev/null 2>&1 || true
-          n=$(gh issue list --label ci-log --state open --json number --jq '.[0].number' || true)
+          # 用 GitHub REST API 而非 gh CLI，避免 runner 上 gh 缺失的问题
+          n=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$GH_REPO/issues?state=open&labels=ci-log&per_page=1" \
+            | python3 -c "import json,sys;d=json.load(sys.stdin);print(d[0]['number'] if d else '')")
           if [ -n "$n" ]; then
-            gh issue comment "$n" --body-file report.md
+            echo "更新已存在的诊断 Issue #$n"
+            python3 -c "import json,os;open('/tmp/body.json','w').write(json.dumps({'body':open('report.md',encoding='utf-8').read()}))"
+            curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" \
+              --data @/tmp/body.json \
+              "https://api.github.com/repos/$GH_REPO/issues/$n/comments" >/dev/null
           else
-            gh issue create --title "[CI] 部署失败诊断（自动）" --body-file report.md --label ci-log
+            echo "创建诊断 Issue"
+            python3 -c "import json;open('/tmp/body.json','w').write(json.dumps({'title':'[CI] 部署失败诊断（自动）','body':open('report.md',encoding='utf-8').read(),'labels':['ci-log']}))"
+            curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" \
+              --data @/tmp/body.json \
+              "https://api.github.com/repos/$GH_REPO/issues" >/dev/null
           fi
