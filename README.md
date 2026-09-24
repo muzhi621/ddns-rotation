@@ -122,6 +122,11 @@ npm run dev                                                 # http://localhost:8
 | Cloudflare | `cloudflare` | `api_token`（权限：Zone → DNS → Edit） |
 | 阿里云云解析 | `aliyun` | `access_key_id`、`access_key_secret` |
 | 腾讯云 DNSPod | `dnspod` | `secret_id`、`secret_key` |
+| Google Cloud DNS | `google` | `service_account`（服务账号 JSON）、`project` |
+| AWS Route 53 | `route53` | `access_key_id`、`secret_access_key` |
+| GoDaddy | `godaddy` | `api_key`、`api_secret` |
+| Namecheap | `namecheap` | `api_user`、`api_key`、`client_ip`（需 IP 白名单，Worker 出口不固定） |
+| DigitalOcean | `digitalocean` | `api_token` |
 | name.com | `name.com` | `username`、`api_token` |
 | 演练 | `none` | 无（只算排班、写日志，不下发解析） |
 

@@ -67,3 +67,34 @@ export function tc3Timestamp(date = new Date()) {
 export function tc3Date(ts) {
   return new Date(ts * 1000).toISOString().slice(0, 10);
 }
+
+/* ---------------- AWS SigV4（Route 53 等兼容 AWS 签名的服务） ---------------- */
+
+export async function awsSigV4({ accessKey, secretKey, method, host, path, query = '', body = '', service, region, contentType = '' }) {
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const date = amzDate.slice(0, 8);
+  const payloadHash = await sha256hex(body);
+
+  const headers = { host, 'x-amz-date': amzDate };
+  if (contentType) headers['content-type'] = contentType;
+  const sorted = Object.keys(headers).sort();
+  const canonicalHeaders = sorted.map((k) => `${k}:${headers[k]}\n`).join('');
+  const signedHeaders = sorted.join(';');
+  const canonicalRequest = [method, path, query, canonicalHeaders, signedHeaders, payloadHash].join('\n');
+
+  const scope = `${date}/${region}/${service}/aws4_request`;
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, await sha256hex(canonicalRequest)].join('\n');
+
+  const kDate = await hmac(`AWS4${secretKey}`, date);
+  const kRegion = await hmac(kDate, region, 'SHA-256', true);
+  const kService = await hmac(kRegion, service, 'SHA-256', true);
+  const kSigning = await hmac(kService, 'aws4_request', 'SHA-256', true);
+  const signature = hex(await hmac(kSigning, stringToSign, 'SHA-256', true));
+
+  return {
+    amzDate,
+    authorization: `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+    payloadHash,
+  };
+}
