@@ -175,33 +175,49 @@ jobs:
   report:
     name: 上报诊断到 Issue
     needs: deploy
-    if: ${{ needs.deploy.result == 'failure' }}
+    if: always()
     runs-on: ubuntu-latest
     permissions:
       issues: write
     steps:
+      - name: 探测 deploy job 结果
+        run: |
+          echo "deploy 结论：${{ needs.deploy.result }}"
+          echo "test 结论：${{ needs.test.result }}"
+
       - uses: actions/download-artifact@v4
         with:
           name: deploy-diagnostics
+        continue-on-error: true
+
       - name: 写入 / 更新 Issue（纯 REST，不依赖 gh CLI）
+        if: ${{ needs.deploy.result == 'failure' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          # 用 GitHub REST API 而非 gh CLI，避免 runner 上 gh 缺失的问题
+          # 若上面没下载到 artifact（失败太早），则现场拼一份结论摘要
+          if [ ! -f report.md ]; then
+            {
+              echo "## Actions 运行 #${{ github.run_number }}"
+              echo "commit: \`${GITHUB_SHA:0:7}\` · 分支 \`${GITHUB_REF_NAME}\`"
+              echo
+              echo "deploy job 结论：**${{ needs.deploy.result }}**"
+              echo
+              echo "> 失败发生得太早，未生成 artifact。请打开本运行页面查看步骤日志。"
+            } > report.md
+          fi
           n=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
             "https://api.github.com/repos/$GH_REPO/issues?state=open&labels=ci-log&per_page=1" \
             | python3 -c "import json,sys;d=json.load(sys.stdin);print(d[0]['number'] if d else '')")
+          python3 -c "import json;open('/tmp/body.json','w').write(json.dumps({'body':open('report.md',encoding='utf-8').read()}))"
           if [ -n "$n" ]; then
-            echo "更新已存在的诊断 Issue #$n"
-            python3 -c "import json,os;open('/tmp/body.json','w').write(json.dumps({'body':open('report.md',encoding='utf-8').read()}))"
             curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" \
-              --data @/tmp/body.json \
-              "https://api.github.com/repos/$GH_REPO/issues/$n/comments" >/dev/null
+              --data @/tmp/body.json "https://api.github.com/repos/$GH_REPO/issues/$n/comments" >/dev/null
+            echo "已更新 Issue #$n"
           else
-            echo "创建诊断 Issue"
             python3 -c "import json;open('/tmp/body.json','w').write(json.dumps({'title':'[CI] 部署失败诊断（自动）','body':open('report.md',encoding='utf-8').read(),'labels':['ci-log']}))"
             curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" \
-              --data @/tmp/body.json \
-              "https://api.github.com/repos/$GH_REPO/issues" >/dev/null
+              --data @/tmp/body.json "https://api.github.com/repos/$GH_REPO/issues" >/dev/null
+            echo "已创建 Issue"
           fi
