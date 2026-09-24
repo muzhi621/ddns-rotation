@@ -151,21 +151,23 @@ jobs:
             fi
           fi
 
-      # 失败时把脱敏日志打包，交给下一个 job 开成 Issue，便于快速定位
-      - name: 收集诊断报告
+      # 失败时把脱敏日志上传到 paste.rs（无需 token，返回匿名可读的 URL），同时打 artifact
+      - name: 上传诊断到 paste.rs
         if: failure()
         run: |
           {
-            echo "## Actions 运行 #${{ github.run_number }}"
-            echo "commit: \`${GITHUB_SHA:0:7}\` · 分支 \`${GITHUB_REF_NAME}\`"
+            echo "=== Actions 运行 #${{ github.run_number }} ==="
+            echo "commit: ${GITHUB_SHA:0:7} · 分支 ${GITHUB_REF_NAME}"
             echo
-            cat /tmp/summary.md 2>/dev/null || true
+            cat /tmp/summary.md 2>/dev/null || echo "(诊断步骤未跑到或已失败)"
             echo
-            echo "### wrangler deploy 输出（末尾 80 行，已脱敏）"
-            echo '```'
-            sed -E 's/[A-Za-z0-9_-]{35,}/[REDACTED]/g' /tmp/deploy.log 2>/dev/null | tail -80 || echo "(无 deploy 日志，失败发生在更早的步骤)"
-            echo '```'
-          } > report.md
+            echo "=== wrangler deploy 输出（末尾 80 行，已脱敏）==="
+            sed -E 's/[A-Za-z0-9_-]{35,}/[REDACTED]/g' /tmp/deploy.log 2>/dev/null | tail -80 || echo "(无 deploy 日志，失败在更早步骤)"
+          } > /tmp/report.txt
+          # paste.rs：POST 纯文本，返回一行 URL
+          url=$(curl -s --data-binary @/tmp/report.txt https://paste.rs)
+          echo "::notice::诊断报告：$url"
+          echo "DIAG_URL=$url" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         if: failure()
