@@ -17,11 +17,12 @@ async function call(cfg, path, init = {}) {
   const res = await fetch(`${EP}${path}`, {
     ...init,
     headers: { Authorization: authHeader(cfg), 'Content-Type': 'application/json', ...(init.headers || {}) },
-    body: init.body ? JSON.stringify(init.body) : undefined,
+    // 兼容字符串与对象，避免双重序列化（曾导致 Invalid Argument）
+    body: init.body ? (typeof init.body === 'string' ? init.body : JSON.stringify(init.body)) : undefined,
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(`name.com: ${json.message || `HTTP ${res.status}`}`);
+    const err = new Error(`name.com: HTTP ${res.status} ${json.message || ''}`.trim());
     err.status = res.status;
     throw err;
   }
@@ -52,13 +53,13 @@ async function findZone(cfg, domain) {
 
 async function listRecords(cfg, zone) {
   const out = [];
-  let cursor = '';
+  // nextPage 可能是相对路径（如 /v4/domains/x/records?perPage=100&recordId=abc）也可能是游标值
+  let next = `/domains/${encodeURIComponent(zone)}/records?perPage=100`;
   for (let i = 0; i < 20; i++) {
-    const q = cursor ? `?perPage=100&recordId=${encodeURIComponent(cursor)}` : '?perPage=100';
-    const json = await call(cfg, `/domains/${encodeURIComponent(zone)}/records${q}`);
+    const json = await call(cfg, next);
     out.push(...(json.records || []));
-    cursor = json.nextPage || '';
-    if (!cursor) break;
+    if (!json.nextPage) break;
+    next = String(json.nextPage).startsWith('/') ? json.nextPage : `/domains/${encodeURIComponent(zone)}/records?recordId=${encodeURIComponent(json.nextPage)}`;
   }
   return out;
 }
