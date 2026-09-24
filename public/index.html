@@ -562,6 +562,8 @@ const handlers = {
       ['值班机器', r.machine ? r.machine : '无（使用兜底 IP）'],
       ['下发 IP', r.ip || '（无可用 IP）'],
       ['判定依据', r.reason || '—'],
+      ['操作方式', r.action === 'created' ? '新建记录' : r.action === 'updated' ? '更新现有记录' : '—'],
+      ['记录 ID', r.recordId || '（未回填）'],
       ['结果', (r.ok ? '✓ ' : '✗ ') + (r.message || (r.ok ? '已下发' : '失败'))],
     ];
     const wrap = document.createElement('div');

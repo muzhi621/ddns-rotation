@@ -266,6 +266,8 @@ export async function syncOneDomain(env, domainId) {
     summary.ok = true;
     summary.message = res.dryRun ? '演练模式，未实际下发' : '已下发';
     summary.recordId = res.recordId || d.record_id || '';
+    summary.action = res.action || '';
+    summary.provider = d.provider;
   } catch (err) {
     summary.message = err.message || String(err);
     await writeLog(env, {

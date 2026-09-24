@@ -73,15 +73,19 @@ function hostNameOf(prefix, rec) {
 
 function matchRecord(records, hostName, type) {
   const t = (type || 'A').toUpperCase();
-  return records.find(
-    (r) => (r.type || '').toUpperCase() === t && String(r.hostName ?? r.host ?? '').toLowerCase() === hostName.toLowerCase(),
-  );
+  const fqdnWant = hostName ? `${hostName}.${zone}`.toLowerCase() : zone.toLowerCase();
+  return records.find((r) => {
+    if ((r.type || '').toUpperCase() !== t) return false;
+    const hn = String(r.hostName ?? r.host ?? '').toLowerCase();
+    const f = String(r.fqdn ?? '').toLowerCase().replace(/\.$/, '');
+    return hn === hostName.toLowerCase() || (f && f === fqdnWant);
+  });
 }
 
 export async function resolve({ cfg, rec }) {
   const { zone, prefix } = await findZone(cfg, rec.domain);
   const records = await listRecords(cfg, zone);
-  const hit = matchRecord(records, hostNameOf(prefix, rec), rec.record_type || 'A');
+  const hit = matchRecord(records, hostNameOf(prefix, rec), rec.record_type || 'A', zone);
   return { zoneId: zone, recordId: hit?.id ? String(hit.id) : '', content: hit?.answer || '' };
 }
 
@@ -91,14 +95,27 @@ export async function update({ cfg, rec, value }) {
   const hostName = hostNameOf(prefix, rec);
   const type = rec.record_type || 'A';
   const ttl = Math.max(60, Number(rec.ttl) || 300);
-  const hit = matchRecord(records, hostName, type);
+  const hit = matchRecord(records, hostName, type, zone);
   const body = JSON.stringify({ host: hostName, type, answer: value, ttl });
 
+  let recordId;
+  let action;
   if (hit?.id) {
     await call(cfg, `/domains/${encodeURIComponent(zone)}/records/${hit.id}`, { method: 'PUT', body });
-    return { zoneId: zone, recordId: String(hit.id), content: value };
+    recordId = String(hit.id);
+    action = 'updated';
+  } else {
+    const created = await call(cfg, `/domains/${encodeURIComponent(zone)}/records`, { method: 'POST', body });
+    recordId = created.record?.id ? String(created.record.id) : '';
+    action = 'created';
   }
-  // 记录不存在则创建，不强制要求预先手工建好
-  const created = await call(cfg, `/domains/${encodeURIComponent(zone)}/records`, { method: 'POST', body });
-  return { zoneId: zone, recordId: created.record?.id ? String(created.record.id) : '', content: value };
+
+  // 回读验证：API 返回 200 不代表值真的变了，回读不一致视为失败（防假成功）
+  const verify = await call(cfg, `/domains/${encodeURIComponent(zone)}/records/${recordId}`);
+  const vObj = verify.record || verify;
+  const got = vObj.answer ?? '';
+  if (got !== value) {
+    throw new Error(`name.com: 下发后回读不一致（期望 ${value}，实际 ${got || '空'}）——host=${hostName} zone=${zone} action=${action}`);
+  }
+  return { zoneId: zone, recordId, content: value, action };
 }
