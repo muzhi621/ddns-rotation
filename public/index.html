@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<html lang="zh-CN" data-page-node-id="7jfJSiaBQJZni6W3SNZywn">
+<head data-page-node-id="S6UEgVWWlGm0NqU9nMXMUB">
+<meta charset="utf-8" data-page-node-id="SUIhLPlooRpWUea3cYSFlb" />
+<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="3H0mQq4RHrqOF2mSvL5ec1" />
 <title>多机轮换解析调度器</title>
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --line:#e4e7ec; --text:#1f2430; --muted:#6b7280; --primary:#2f6fed; --ok:#0f9960; --warn:#c47f17; --err:#d64545; }
@@ -46,23 +46,50 @@
   .fld .hint { font-size:11px; color:var(--muted); margin-top:2px; }
   .toast { position:fixed; right:18px; bottom:18px; background:#1f2430; color:#fff; padding:10px 14px; border-radius:8px; z-index:99; max-width:80vw; }
   code { background:#f0f2f5; padding:1px 5px; border-radius:4px; }
+  /* 登录页 */
+  .login-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:linear-gradient(135deg,#2f6fed 0%,#1e4bb8 100%); }
+  .login-card { background:#fff; border-radius:16px; padding:36px 32px; width:min(380px,100%); box-shadow:0 20px 60px rgba(0,0,0,.25); }
+  .login-card .logo { text-align:center; margin-bottom:8px; }
+  .login-card h1 { font-size:20px; margin:0 0 4px; text-align:center; font-weight:700; }
+  .login-card .sub { color:var(--muted); text-align:center; font-size:13px; margin-bottom:24px; }
+  .login-card label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
+  .login-card input { width:100%; padding:10px 12px; font-size:15px; }
+  .login-card .btn { width:100%; padding:10px; margin-top:16px; font-size:15px; }
+  .login-err { color:var(--err); font-size:12px; margin-top:10px; min-height:16px; text-align:center; }
+  #shell { display:none; }
+  #shell.on { display:block; }
   @media (max-width:640px){ header{padding:10px 12px} nav,main{padding-left:12px;padding-right:12px} .kv{grid-template-columns:96px 1fr} }
 </style>
 </head>
-<body>
-<header>
-  <h1>多机轮换解析调度器</h1>
-  <span class="muted" id="status"></span>
-  <div class="spacer"></div>
-  <input type="password" id="token" placeholder="管理密码（ADMIN_TOKEN）" style="width:210px" />
-  <button class="btn" id="btn-save-token">登录</button>
-  <button class="btn primary" id="btn-sync">立即同步</button>
-  <button class="btn" id="btn-force">强制同步</button>
-  <button class="btn" id="btn-reload">刷新</button>
+<body data-page-node-id="cCV3sBMK9F0LR70PfCrmA1">
+<!-- 登录页：进入系统前先鉴权 -->
+<div id="login" class="login-wrap">
+  <div class="login-card">
+    <div class="logo">🌐</div>
+    <h1>多机轮换解析调度器</h1>
+    <div class="sub">请输入管理密码进入系统</div>
+    <label for="login-token">管理密码（ADMIN_TOKEN）</label>
+    <input type="password" id="login-token" placeholder="部署时设置的密码" autocomplete="current-password" />
+    <button class="btn primary" id="btn-login">登 录</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- 主界面 -->
+<div id="shell">
+<header data-page-node-id="ninCRFxmt8912vWyfuYGj3">
+  <h1 data-page-node-id="8BRCoOXdFlUxnoECdc7mMc">多机轮换解析调度器</h1>
+  <span class="muted" id="status" data-page-node-id="z6KRrx50t8dGILAqrLAB16"></span>
+  <div class="spacer" data-page-node-id="2L6eKu5plGECi5m98Hgsw5"></div>
+  <button class="btn" id="btn-logout" data-page-node-id="vLk9pQwXs8TqR2NcYfB4d">退出登录</button>
+  <button class="btn primary" id="btn-sync" data-page-node-id="g8JEMT53gyA4wBEwFlLFf6">立即同步</button>
+  <button class="btn" id="btn-force" data-page-node-id="uBf3OaTxpFmpHjjPjWwKTd">强制同步</button>
+  <button class="btn" id="btn-reload" data-page-node-id="EVY9jEGh6BMn2SLkVpsHQU">刷新</button>
 </header>
 
-<nav id="tabs"></nav>
-<main id="app"></main>
+<nav id="tabs" data-page-node-id="tu9ZCh4d1AcLTrDB7ALdXV"></nav>
+<main id="app" data-page-node-id="m4p3ykv0gR5Gg2oxmZ666t"></main>
+</div>
 
 <script>
 const $ = (s) => document.querySelector(s);
@@ -119,8 +146,13 @@ async function load() {
     $('#status').textContent = '已连接 · ' + new Date(ov.now).toLocaleString('zh-CN', { hour12: false });
     render();
   } catch (e) {
+    // 401 说明令牌无效/过期，回到登录页
+    if (e.message.includes('401') || e.message.includes('未授权')) {
+      logout(false);
+      return;
+    }
     $('#status').textContent = '连接失败：' + e.message;
-    if (!DATA) { // 未登录/无后端时渲染骨架，保证界面可操作
+    if (!DATA) { // 兜底渲染骨架
       DATA = { groups: [], machines: [], credentials: [], logs: [] };
       META = {
         providers: [],
@@ -130,6 +162,43 @@ async function load() {
       render();
     }
   }
+}
+
+/* ---------- 登录态 ---------- */
+function showLogin(err) {
+  $('#login').style.display = 'flex';
+  $('#shell').classList.remove('on');
+  $('#login-err').textContent = err || '';
+  if (!err) $('#login-token').value = '';
+  setTimeout(() => $('#login-token').focus(), 0);
+}
+function showApp() {
+  $('#login').style.display = 'none';
+  $('#shell').classList.add('on');
+}
+async function doLogin() {
+  const v = $('#login-token').value.trim();
+  if (!v) { $('#login-err').textContent = '请输入管理密码'; return; }
+  const btn = $('#btn-login');
+  btn.disabled = true; btn.textContent = '验证中…';
+  TOKEN = v;
+  try {
+    // 用 overview 验证令牌是否有效
+    await api('/api/overview');
+    localStorage.setItem('dr_token', TOKEN);
+    showApp();
+    await load();
+  } catch (e) {
+    TOKEN = '';
+    $('#login-err').textContent = '密码错误或服务不可用：' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '登 录';
+  }
+}
+function logout(clear) {
+  if (clear) localStorage.removeItem('dr_token');
+  TOKEN = '';
+  showLogin();
 }
 
 /* ---------- 通用表单弹窗（支持按条件显隐字段、Esc 关闭） ---------- */
@@ -522,14 +591,9 @@ function domainFields() {
   ];
 }
 
-$('#btn-save-token').onclick = () => {
-  TOKEN = $('#token').value.trim();
-  if (!TOKEN) return toast('请先输入管理密码（部署时设置的 ADMIN_TOKEN）', true);
-  localStorage.setItem('dr_token', TOKEN);
-  toast('已保存，正在连接…');
-  load();
-};
-$('#token').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-save-token').click(); });
+$('#btn-login').onclick = doLogin;
+$('#login-token').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+$('#btn-logout').onclick = () => logout(true);
 $('#btn-reload').onclick = load;
 $('#btn-sync').onclick = (e) => guard(async () => {
   const r = await api('/api/sync', { method: 'POST', body: {} });
@@ -539,8 +603,15 @@ $('#btn-force').onclick = (e) => guard(async () => {
   await api('/api/sync', { method: 'POST', body: { force: true } });
   toast('已强制重新下发全部解析');
 }, e.currentTarget);
-$('#token').value = TOKEN;
-load();
+
+// 启动：有令牌则尝试直接进入，否则显示登录页
+(function init() {
+  if (TOKEN) {
+    doLogin();
+  } else {
+    showLogin();
+  }
+})();
 </script>
 </body>
 </html>
