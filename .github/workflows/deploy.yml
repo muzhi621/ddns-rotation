@@ -183,7 +183,6 @@ jobs:
       - name: 探测 deploy job 结果
         run: |
           echo "deploy 结论：${{ needs.deploy.result }}"
-          echo "test 结论：${{ needs.test.result }}"
 
       - uses: actions/download-artifact@v4
         with:
