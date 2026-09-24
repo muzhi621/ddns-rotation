@@ -71,9 +71,9 @@ function hostNameOf(prefix, rec) {
   return prefix ? (sub ? `${prefix}.${sub}` : prefix) : sub;
 }
 
-function matchRecord(records, hostName, type) {
+function matchRecord(records, hostName, type, zone) {
   const t = (type || 'A').toUpperCase();
-  const fqdnWant = hostName ? `${hostName}.${zone}`.toLowerCase() : zone.toLowerCase();
+  const fqdnWant = hostName ? `${hostName}.${zone}`.toLowerCase() : String(zone || '').toLowerCase();
   return records.find((r) => {
     if ((r.type || '').toUpperCase() !== t) return false;
     const hn = String(r.hostName ?? r.host ?? '').toLowerCase();
@@ -115,7 +115,13 @@ export async function update({ cfg, rec, value }) {
   const vObj = verify.record || verify;
   const got = vObj.answer ?? '';
   if (got !== value) {
-    throw new Error(`name.com: 下发后回读不一致（期望 ${value}，实际 ${got || '空'}）——host=${hostName} zone=${zone} action=${action}`);
+    throw new Error(`name.com: 下发后回读不一致（期望 ${value}，实际 ${got || '空'}）——host=${hostName} zone=${zone} action=${action} recordsTotal=${records.length}`);
   }
-  return { zoneId: zone, recordId, content: value, action };
+  return {
+    zoneId: zone,
+    recordId,
+    content: value,
+    action,
+    detail: { zone, hostName, recordsTotal: records.length, matchedId: hit?.id || '', matchedAnswer: hit?.answer || '', verifyAnswer: got },
+  };
 }

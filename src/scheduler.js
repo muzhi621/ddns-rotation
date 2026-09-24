@@ -268,6 +268,7 @@ export async function syncOneDomain(env, domainId) {
     summary.recordId = res.recordId || d.record_id || '';
     summary.action = res.action || '';
     summary.provider = d.provider;
+    summary.detail = res.detail || null;
   } catch (err) {
     summary.message = err.message || String(err);
     await writeLog(env, {

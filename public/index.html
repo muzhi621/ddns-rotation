@@ -566,6 +566,15 @@ const handlers = {
       ['记录 ID', r.recordId || '（未回填）'],
       ['结果', (r.ok ? '✓ ' : '✗ ') + (r.message || (r.ok ? '已下发' : '失败'))],
     ];
+    if (r.detail) {
+      rows.push(
+        ['[诊断] zone', r.detail.zone || '—'],
+        ['[诊断] 匹配主机名', r.detail.hostName || '—'],
+        ['[诊断] 拉到记录数', r.detail.recordsTotal ?? '—'],
+        ['[诊断] 命中记录', r.detail.matchedId ? `${r.detail.matchedId}（原值 ${r.detail.matchedAnswer || '空'}）` : '未命中（走新建）'],
+        ['[诊断] 回读值', r.detail.verifyAnswer ?? '—'],
+      );
+    }
     const wrap = document.createElement('div');
     wrap.className = 'modal';
     wrap.innerHTML = `<div class="modal-box"><h3>解析下发结果</h3>
