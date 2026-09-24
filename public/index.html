@@ -44,6 +44,12 @@
   .fld label { display:block; font-size:12px; color:var(--muted); margin-bottom:3px; }
   .fld input, .fld select { width:100%; }
   .fld .hint { font-size:11px; color:var(--muted); margin-top:2px; }
+  .cred-docs { background:#f6f8ff; border:1px solid #dbe4ff; border-radius:8px; padding:12px 14px; margin:4px 0 12px; }
+  .cred-docs-title { font-weight:600; color:#33408f; margin-bottom:6px; font-size:13px; }
+  .cred-docs ol { margin:0; padding-left:20px; color:var(--text); font-size:13px; }
+  .cred-docs li { margin:4px 0; }
+  .cred-docs a { color:var(--primary); font-size:13px; text-decoration:none; }
+  .cred-docs a:hover { text-decoration:underline; }
   .toast { position:fixed; right:18px; bottom:18px; background:#1f2430; color:#fff; padding:10px 14px; border-radius:8px; z-index:99; max-width:80vw; }
   code { background:#f0f2f5; padding:1px 5px; border-radius:4px; }
   /* 登录页 */
@@ -394,12 +400,26 @@ function credModal(existing) {
       <div class="fld"><label>DNS 厂商</label>
         <select data-k="provider">${providers.map((p) => `<option value="${esc(p.key)}" ${existing?.provider === p.key ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></div>
       <div id="cred-fields"></div>
+      <div id="cred-docs"></div>
       <div class="row" style="justify-content:flex-end;margin-top:6px">
         <button class="btn" data-a="cancel">取消</button>
         <button class="btn primary" data-a="ok">保存</button>
       </div></div>`;
     document.body.appendChild(wrap);
     const close = (v) => { wrap.remove(); resolve(v); };
+
+    const renderDocs = (key) => {
+      const p = providers.find((x) => x.key === key);
+      const d = p?.docs || {};
+      const steps = d.steps || [];
+      const box = wrap.querySelector('#cred-docs');
+      if (!d.title && !steps.length) { box.innerHTML = ''; return; }
+      box.innerHTML = `<div class="cred-docs">
+        <div class="cred-docs-title">📖 ${esc(d.title)}</div>
+        <ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
+        ${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener">前往获取（新窗口打开）↗</a>` : ''}
+      </div>`;
+    };
 
     const renderFields = () => {
       const key = wrap.querySelector('[data-k=provider]').value;
@@ -411,6 +431,7 @@ function credModal(existing) {
           <input type="${f.secret ? 'password' : 'text'}" data-f="${esc(f.key)}" value="${esc(cfg[f.key] || '')}" autocomplete="off" />
           ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}</div>`).join('')
         : '<div class="muted" style="font-size:12px">该厂商无需密钥（演练模式：只计算排班、写日志，不下发解析）。</div>');
+      renderDocs(key);
     };
     renderFields();
     wrap.querySelector('[data-k=provider]').onchange = renderFields;

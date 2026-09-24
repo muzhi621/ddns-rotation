@@ -12,7 +12,7 @@ import {
   parseConfig,
   writeLog,
 } from './scheduler.js';
-import { PROVIDER_LABELS, providerFields, resolveRecord } from './providers/index.js';
+import { PROVIDER_LABELS, providerFields, providerDocs, resolveRecord } from './providers/index.js';
 
 const app = new Hono();
 
@@ -29,7 +29,7 @@ app.get('/api/health', (c) => c.json({ ok: true, time: new Date().toISOString() 
 
 app.get('/api/meta', (c) =>
   c.json({
-    providers: Object.entries(PROVIDER_LABELS).map(([key, label]) => ({ key, label, fields: providerFields(key) })),
+    providers: Object.entries(PROVIDER_LABELS).map(([key, label]) => ({ key, label, fields: providerFields(key), docs: providerDocs(key) })),
     modes: [
       { key: 'window', label: '按在线时段', desc: '为每台机器填写在线时段（与云厂商开机时间一致），自动解析给时段内的机器，支持跨天' },
       { key: 'rotate', label: '按天轮转', desc: '组内机器每天轮流值班，每日固定时刻切换' },
