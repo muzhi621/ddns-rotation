@@ -148,6 +148,15 @@ check('跨天时段被接受', okWin.status, 200);
 
 const delCred = await req('DELETE', `/api/credentials/${cred}`);
 check('被引用的凭据禁止删除', delCred.status, 400);
+
+// 14b. 单条解析记录测试接口（none 演练 provider，resolve 返回空但不报错）
+const recForTest = (await req('GET', '/api/domains')).json.domains.find((d) => d.group_id === gB);
+const tRec = await req('POST', `/api/domains/${recForTest.id}/test`, {});
+check('单条记录测试返回 ok', tRec.status === 200 && tRec.json.ok === true, true);
+check('单条记录测试含 current 字段', 'current' in tRec.json, true);
+const tNoCred = await req('POST', `/api/domains/${recForTest.id}/test`, {});
+check('记录测试接口可调用', tNoCred.status, 200);
+
 const recsB = (await req('GET', '/api/domains')).json.domains.filter((d) => d.group_id === gB);
 for (const r of recsB) await req('DELETE', `/api/domains/${r.id}`);
 const delCred2 = await req('DELETE', `/api/credentials/${cred}`);
