@@ -61,18 +61,22 @@ npm run deploy
 | 字段 | 填写内容 |
 |---|---|
 | 项目名称 | `ddns-rotation`（保持） |
-| 构建命令 | `npm ci && sed -i "s/REPLACE_WITH_YOUR_D1_DATABASE_ID/${D1_DATABASE_ID}/" wrangler.toml` |
-| 部署命令 | `npx wrangler deploy && npx wrangler d1 execute ddns-rotation --remote --file=./schema.sql` |
+| 构建命令 | `npm ci && node scripts/inject-d1.mjs` |
+| 部署命令 | `npx wrangler deploy && npx wrangler d1 execute ddns-rotation --remote --file=./schema.sql -y` |
 | 预览命令 | **清空**（`wrangler preview` 在 wrangler v3 已移除，留着会报错） |
 | 启用预览构建 | **关掉** |
 
 > 部署命令后半段是**建表**（`CREATE TABLE IF NOT EXISTS`，幂等，重复跑不丢数据）。`wrangler deploy` 本身不会建表，漏掉这步会让后台所有接口报 `no such table`。
+>
+> **database_id 不用手动填**：`scripts/inject-d1.mjs` 会在构建时用构建环境自带的 Cloudflare 凭据查询 `ddns-rotation` 库的 UUID 并自动写入 `wrangler.toml`（前提是库里已存在同名 D1 数据库）。
 
-点开「高级设置 → 变量和密钥」，加一个**明文变量**（不是密钥）：
+点开「高级设置 → 变量和密钥」：
 
-| 变量名 | 值 |
-|---|---|
-| `D1_DATABASE_ID` | D1 数据库的 UUID（`npx wrangler d1 list`，或控制台 D1 页面里那串 UUID） |
+| 名称 | 值 | 说明 |
+|---|---|---|
+| `ADMIN_TOKEN`（部署成功后加） | 你的强密码 | 类型选**密钥**；Worker → 设置 → 变量和密钥 → 添加，保存即生效 |
+
+> `D1_DATABASE_ID` 变量不再需要——构建脚本会自动查询注入。Dashboard 里之前加的名为 `D1_DATABASE_ID` 的 D1 绑定可以删掉（代码里的绑定名是 `DB`，以 wrangler.toml 为准）。
 
 > **前置条件**：D1 数据库必须先存在。控制台 `Workers & Pages → D1 SQL database → Create`，名字填 `ddns-rotation`，创建后复制 **Database ID（UUID）** 粘贴到上面的变量里。
 >
