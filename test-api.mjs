@@ -34,6 +34,7 @@ const check = (name, actual, expect) => {
   ok ? pass++ : fail++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : `  实际=${actual} 期望=${expect}`}`);
 };
+const qState = (database, key) => database.prepare('SELECT value FROM state WHERE key = ?').get(key)?.value || '';
 
 async function req(method, path, body) {
   const res = await worker.fetch(
@@ -149,13 +150,14 @@ check('跨天时段被接受', okWin.status, 200);
 const delCred = await req('DELETE', `/api/credentials/${cred}`);
 check('被引用的凭据禁止删除', delCred.status, 400);
 
-// 14b. 单条解析记录测试接口（none 演练 provider，resolve 返回空但不报错）
+// 14b. 单条解析记录手动下发接口（none 演练 provider，dryRun 但流程完整）
 const recForTest = (await req('GET', '/api/domains')).json.domains.find((d) => d.group_id === gB);
 const tRec = await req('POST', `/api/domains/${recForTest.id}/test`, {});
-check('单条记录测试返回 ok', tRec.status === 200 && tRec.json.ok === true, true);
-check('单条记录测试含 current 字段', 'current' in tRec.json, true);
-const tNoCred = await req('POST', `/api/domains/${recForTest.id}/test`, {});
-check('记录测试接口可调用', tNoCred.status, 200);
+check('单条记录下发返回 ok', tRec.status === 200 && tRec.json.ok === true, true);
+check('下发结果含值班机器与 IP', 'machine' in tRec.json && !!tRec.json.ip, true);
+check('下发结果含判定依据', !!tRec.json.reason, true);
+const stAfter = await qState(db, `rec:${recForTest.id}`);
+check('下发后 state 记录期望 IP', stAfter, tRec.json.ip);
 
 const recsB = (await req('GET', '/api/domains')).json.domains.filter((d) => d.group_id === gB);
 for (const r of recsB) await req('DELETE', `/api/domains/${r.id}`);

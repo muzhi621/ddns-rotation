@@ -205,3 +205,75 @@ export async function syncAll(env, { force = false, groupId = null } = {}) {
   }
   return out;
 }
+
+// 单条记录手动触发解析：计算当前值班 IP 并强制下发该条记录（等价于针对单条的强制同步）
+export async function syncOneDomain(env, domainId) {
+  const d = await qOne(
+    env,
+    `SELECT d.*, c.config AS cred_config, c.name AS cred_name,
+            g.name AS group_name, g.mode, g.timezone, g.switch_time, g.anchor_date, g.fallback_ip
+     FROM group_domains d
+     LEFT JOIN credentials c ON c.id = d.credential_id
+     LEFT JOIN groups g ON g.id = d.group_id
+     WHERE d.id = ?`,
+    domainId,
+  );
+  if (!d) throw new Error('解析记录不存在');
+
+  const group = {
+    id: d.group_id,
+    name: d.group_name,
+    mode: d.mode,
+    timezone: d.timezone,
+    switch_time: d.switch_time,
+    anchor_date: d.anchor_date,
+    fallback_ip: d.fallback_ip,
+  };
+  const members = await groupMembers(env, d.group_id);
+  const { machine, reason } = resolveTarget(group, members, new Date());
+  const ip = (machine?.machine_ip || group.fallback_ip || '').trim();
+
+  const summary = {
+    domain: fqdn(d.domain, d.record_name),
+    group: d.group_name,
+    machine: machine?.machine_name || null,
+    ip,
+    reason,
+    ok: false,
+    message: '',
+  };
+
+  if (!ip) {
+    summary.message = '当前无值班机器且未配置兜底 IP，无法下发';
+    await writeLog(env, { level: 'warn', group_id: d.group_id, action: 'sync.single', message: `${d.group_name}：${summary.message}` });
+    return summary;
+  }
+
+  try {
+    const cfg = parseConfig(d.cred_config);
+    const res = await applyRecord(d.provider, cfg, d, ip);
+    await setState(env, `rec:${d.id}`, ip);
+    if ((res.recordId && res.recordId !== d.record_id) || (res.zoneId && res.zoneId !== d.zone_id)) {
+      await qRun(env, 'UPDATE group_domains SET record_id = ?, zone_id = ? WHERE id = ?', res.recordId || d.record_id, res.zoneId || d.zone_id, d.id);
+    }
+    await writeLog(env, {
+      level: 'info',
+      group_id: d.group_id,
+      machine_id: machine?.machine_id || null,
+      action: 'dns.update',
+      message: `${summary.domain} → ${ip}（手动触发｜${d.provider}）`,
+    });
+    summary.ok = true;
+    summary.message = res.dryRun ? '演练模式，未实际下发' : '已下发';
+    summary.recordId = res.recordId || d.record_id || '';
+  } catch (err) {
+    summary.message = err.message || String(err);
+    await writeLog(env, {
+      level: 'error',
+      group_id: d.group_id,
+      action: 'dns.error',
+      message: `${summary.domain} → ${ip} 手动下发失败：${summary.message}`,
+    });
+  }
+  return summary;
+}

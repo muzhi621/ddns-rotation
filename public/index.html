@@ -357,7 +357,7 @@ function viewDomains() {
       <td>${r.cred_name ? esc(r.cred_name) : '<span class="tag warn">未绑定凭据</span>'}</td>
       <td>${esc(r.ttl)}</td>
       <td>${r.current ? `<code>${esc(r.current)}</code>` : '<span class="muted">—</span>'}</td>
-      <td class="row"><button class="btn sm primary" data-act="test-domain" data-id="${r.id}">测试</button>
+      <td class="row"><button class="btn sm primary" data-act="test-domain" data-id="${r.id}">下发</button>
       <button class="btn sm" data-act="edit-domain" data-id="${r.id}">编辑</button>
       <button class="btn sm danger" data-act="del-domain" data-id="${r.id}">删除</button></td></tr>`).join('') || '<tr><td class="muted">还没有解析记录</td></tr>'}
     </table></div>`;
@@ -555,18 +555,18 @@ const handlers = {
   'test-domain': (id, el) => guard(async () => {
     const r = await api('/api/domains/' + id + '/test', { method: 'POST' });
     const rows = [
-      ['厂商', r.provider || '—'],
-      ['凭据', r.cred_name || '未绑定'],
-      ['记录 ID', r.recordId || '（未回填）'],
-      ['DNS 当前值', r.current || '（空/未找到记录）'],
-      ['期望值', r.expected || '（尚未同步）'],
-      ['是否一致', r.matched ? '✓ 一致' : '✗ 不一致（可能尚未同步或配置有误）'],
+      ['分组', r.group || '—'],
+      ['记录', r.domain || '—'],
+      ['值班机器', r.machine ? r.machine : '无（使用兜底 IP）'],
+      ['下发 IP', r.ip || '（无可用 IP）'],
+      ['判定依据', r.reason || '—'],
+      ['结果', (r.ok ? '✓ ' : '✗ ') + (r.message || (r.ok ? '已下发' : '失败'))],
     ];
     const wrap = document.createElement('div');
     wrap.className = 'modal';
-    wrap.innerHTML = `<div class="modal-box"><h3>解析记录测试结果</h3>
+    wrap.innerHTML = `<div class="modal-box"><h3>解析下发结果</h3>
       <table>${rows.map(([k, v]) => `<tr><td class="muted" style="width:100px">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table>
-      <div class="hint muted" style="margin-top:10px">「测试」只是用该记录的凭据<strong>只读查询</strong> DNS 当前值，不会修改解析。若 DNS 当前值为空，说明该记录尚未在 DNS 厂商侧创建，或域名/主机记录/凭据配置有误。</div>
+      <div class="hint muted" style="margin-top:10px">「下发」会按当前排班把值班机器的 IP <strong>强制写入这一条 DNS 记录</strong>（等价于针对单条的「同步本组」）。DNS 生效还需等待 TTL；若下发失败请检查凭据与域名配置。</div>
       <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" data-act2="close">关闭</button></div></div>`;
     document.body.appendChild(wrap);
     wrap.querySelector('[data-act2=close]').onclick = () => wrap.remove();

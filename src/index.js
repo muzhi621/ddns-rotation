@@ -9,6 +9,7 @@ import {
   nextChange,
   syncAll,
   syncGroup,
+  syncOneDomain,
   parseConfig,
   writeLog,
 } from './scheduler.js';
@@ -304,31 +305,15 @@ app.delete('/api/domains/:id', async (c) => {
   return c.json({ ok: true });
 });
 
-// 单条解析记录测试：用该记录绑定的凭据只读查询 DNS 当前值，验证配置是否正常
+// 单条解析记录手动触发解析：计算当前值班 IP 并强制下发到该记录（等价于针对单条的强制同步）
 app.post('/api/domains/:id/test', async (c) => {
   const id = c.req.param('id');
-  const rec = await qOne(
-    c.env,
-    `SELECT d.*, c.config AS cred_config, c.name AS cred_name
-     FROM group_domains d LEFT JOIN credentials c ON c.id = d.credential_id
-     WHERE d.id = ?`,
-    id,
-  );
-  if (!rec) return c.json({ error: '解析记录不存在' }, 404);
-  if (!rec.cred_config) return c.json({ error: '该记录未绑定 DNS 凭据，请先编辑记录选择凭据' }, 400);
-
-  const cfg = parseConfig(rec.cred_config);
-  const res = await resolveRecord(rec.provider, cfg, rec);
-  const expected = await getState(c.env, `rec:${id}`);
-  return c.json({
-    ok: true,
-    provider: rec.provider,
-    cred_name: rec.cred_name,
-    recordId: res.recordId || rec.record_id || '',
-    current: res.content || '',
-    expected,
-    matched: !!res.content && res.content === expected,
-  });
+  try {
+    const r = await syncOneDomain(c.env, id);
+    return c.json({ ok: r.ok, ...r });
+  } catch (err) {
+    return c.json({ error: err.message || String(err) }, 400);
+  }
 });
 
 /* ---------------- 凭据 ---------------- */
