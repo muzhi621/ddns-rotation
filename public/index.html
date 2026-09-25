@@ -885,22 +885,32 @@ const handlers = {
     toast(msg || '完成');
   }, el),
 
-  'clear-logs': () => guard(async () => {
+  'clear-logs': async (id, el) => {
     if (!confirm('清空全部日志？')) return;
-    await api('/api/logs/clear', { method: 'POST' });
-    DATA.logPage = 0; // 强制重新加载第一页
-    await loadLogs(1);
-  }),
-  'log-prev': () => guard(async () => {
+    if (el) el.disabled = true;
+    try {
+      await api('/api/logs/clear', { method: 'POST' });
+      await loadLogs(1);
+      render();
+    } catch (e) { toast(e.message, true); }
+    finally { if (el) el.disabled = false; }
+  },
+  // 注意：日志分页自管数据，不能用 guard()——guard 末尾的 load() 会用 overview 整体覆盖 DATA，
+  // 清掉 DATA.logPage，导致 render() 自动 loadLogs(1) 把页面拉回第一页。
+  'log-prev': async (id, el) => {
     const p = Math.max(1, (DATA.logPage || 1) - 1);
-    await loadLogs(p);
-    render();
-  }),
-  'log-next': () => guard(async () => {
+    if (el) el.disabled = true;
+    try { await loadLogs(p); render(); }
+    catch (e) { toast(e.message, true); }
+    finally { if (el) el.disabled = false; }
+  },
+  'log-next': async (id, el) => {
     const p = Math.min(DATA.logTotalPages || 1, (DATA.logPage || 1) + 1);
-    await loadLogs(p);
-    render();
-  }),
+    if (el) el.disabled = true;
+    try { await loadLogs(p); render(); }
+    catch (e) { toast(e.message, true); }
+    finally { if (el) el.disabled = false; }
+  },
 };
 
 function groupFields() {
