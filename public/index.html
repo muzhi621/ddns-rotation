@@ -5,73 +5,248 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="3H0mQq4RHrqOF2mSvL5ec1" />
 <title>多机轮换解析调度器</title>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --line:#e4e7ec; --text:#1f2430; --muted:#6b7280; --primary:#2f6fed; --ok:#0f9960; --warn:#c47f17; --err:#d64545; }
+  /* ===== Design Tokens：深色运维风（Operations Dark）===== */
+  :root {
+    --bg: #0f172a;
+    --bg-soft: #0b1220;
+    --card: #111827;
+    --card-2: #1a2332;
+    --line: #263248;
+    --line-soft: #1c2537;
+    --text: #f8fafc;
+    --text-2: #cbd5e1;
+    --muted: #8296ad;
+    --primary: #22c55e;      /* 运维绿 */
+    --primary-strong: #16a34a;
+    --accent: #3b82f6;       /* 信息蓝 */
+    --ok: #22c55e;
+    --warn: #f59e0b;         /* 维护琥珀 */
+    --err: #ef4444;          /* 故障红 */
+    --radius: 12px;
+    --radius-sm: 8px;
+    --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-md: 0 8px 24px rgba(0,0,0,.45);
+    --transition: 160ms cubic-bezier(.4,0,.2,1);
+  }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
-  header { background:#fff; border-bottom:1px solid var(--line); padding:12px 20px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-  header h1 { font-size:16px; margin:0; font-weight:600; }
-  .spacer { flex:1; }
-  input, select, button { font:inherit; }
-  input[type=text], input[type=number], input[type=password], select { padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; }
-  input:focus, select:focus { outline:none; border-color:var(--primary); }
-  .btn { padding:6px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; }
-  .btn:hover { border-color:var(--primary); color:var(--primary); }
-  .btn.primary { background:var(--primary); color:#fff; border-color:var(--primary); }
-  .btn.primary:hover { opacity:.9; color:#fff; }
-  .btn.danger { color:var(--err); }
-  .btn.sm { padding:3px 8px; font-size:12px; }
-  .btn:disabled { opacity:.55; cursor:not-allowed; }
-  nav { display:flex; gap:4px; padding:10px 20px 0; flex-wrap:wrap; }
-  nav button { border:none; background:transparent; padding:8px 14px; border-radius:8px 8px 0 0; cursor:pointer; color:var(--muted); }
-  nav button.on { background:#fff; color:var(--text); font-weight:600; box-shadow:0 -1px 0 var(--line) inset; }
-  main { padding:16px 20px 60px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:14px; overflow-x:auto; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap; }
-  th { color:var(--muted); font-weight:500; font-size:12px; }
-  .muted { color:var(--muted); }
-  .tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; background:#eef2ff; color:#33408f; white-space:nowrap; }
-  .tag.ok { background:#e6f6ee; color:var(--ok); }
-  .tag.warn { background:#fdf3e2; color:var(--warn); }
-  .tag.err { background:#fdecec; color:var(--err); }
-  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .kv { display:grid; grid-template-columns:110px 1fr; gap:4px 10px; align-items:baseline; }
-  .modal { position:fixed; inset:0; background:rgba(15,20,30,.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
-  .modal-box { background:#fff; border-radius:12px; padding:18px; width:min(560px,100%); max-height:86vh; overflow:auto; }
-  .modal-box h3 { margin:0 0 12px; font-size:15px; }
-  .fld { margin-bottom:10px; }
-  .fld label { display:block; font-size:12px; color:var(--muted); margin-bottom:3px; }
-  .fld input, .fld select { width:100%; }
-  .fld .hint { font-size:11px; color:var(--muted); margin-top:2px; }
-  .cred-docs { background:#f6f8ff; border:1px solid #dbe4ff; border-radius:8px; padding:12px 14px; margin:4px 0 12px; }
-  .cred-docs-title { font-weight:600; color:#33408f; margin-bottom:6px; font-size:13px; }
-  .cred-docs ol { margin:0; padding-left:20px; color:var(--text); font-size:13px; }
-  .cred-docs li { margin:4px 0; }
-  .cred-docs a { color:var(--primary); font-size:13px; text-decoration:none; }
-  .cred-docs a:hover { text-decoration:underline; }
-  .toast { position:fixed; right:18px; bottom:18px; background:#1f2430; color:#fff; padding:10px 14px; border-radius:8px; z-index:99; max-width:80vw; }
-  code { background:#f0f2f5; padding:1px 5px; border-radius:4px; }
-  /* 登录页 */
-  .login-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:linear-gradient(135deg,#2f6fed 0%,#1e4bb8 100%); }
-  .login-card { background:#fff; border-radius:16px; padding:36px 32px; width:min(380px,100%); box-shadow:0 20px 60px rgba(0,0,0,.25); }
-  .login-card .logo { text-align:center; margin-bottom:8px; }
-  .login-card h1 { font-size:20px; margin:0 0 4px; text-align:center; font-weight:700; }
-  .login-card .sub { color:var(--muted); text-align:center; font-size:13px; margin-bottom:24px; }
-  .login-card label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
-  .login-card input { width:100%; padding:10px 12px; font-size:15px; }
-  .login-card .btn { width:100%; padding:10px; margin-top:16px; font-size:15px; }
-  .login-err { color:var(--err); font-size:12px; margin-top:10px; min-height:16px; text-align:center; }
-  #shell { display:none; }
-  #shell.on { display:block; }
-  @media (max-width:640px){ header{padding:10px 12px} nav,main{padding-left:12px;padding-right:12px} .kv{grid-template-columns:96px 1fr} }
+  html, body { margin:0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.6 var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    background-image: radial-gradient(1200px 600px at 80% -10%, rgba(34,197,94,.06), transparent 60%);
+  }
+  ::selection { background: rgba(34,197,94,.3); }
+
+  /* 滚动条 */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #263248; border-radius: 8px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #33415a; }
+
+  /* ===== 顶栏 ===== */
+  header {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 14px 24px;
+    background: rgba(15,23,42,.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  header .brand { display: flex; align-items: center; gap: 12px; }
+  header .brand .logo-mark {
+    width: 34px; height: 34px; border-radius: 9px; flex: none;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #05230f; font-weight: 700; font-size: 15px;
+    box-shadow: 0 4px 14px rgba(34,197,94,.35);
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  header .status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted);
+    padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 0 3px rgba(34,197,94,.2); animation: pulse 2s infinite; }
+  .dot.off { background: var(--err); }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 3px rgba(34,197,94,.15);} 50% { box-shadow: 0 0 0 6px rgba(34,197,94,.05);} }
+  .spacer { flex: 1; }
+
+  /* ===== 控件 ===== */
+  input, select, button, textarea { font: inherit; color: var(--text); }
+  input[type=text], input[type=number], input[type=password], select, textarea {
+    padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+    background: var(--bg-soft); color: var(--text);
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  input::placeholder { color: #5b6b80; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(34,197,94,.15); }
+  select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238296ad' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
+  select option { background: var(--card); color: var(--text); }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+    background: var(--card); color: var(--text-2); cursor: pointer;
+    font-weight: 500; white-space: nowrap;
+    transition: all var(--transition);
+  }
+  .btn:hover { border-color: var(--primary); color: var(--text); background: var(--card-2); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--primary); color: #05230f; border-color: var(--primary); font-weight: 600; }
+  .btn.primary:hover { background: #2ee06b; color: #05230f; }
+  .btn.danger { color: var(--err); border-color: rgba(239,68,68,.3); }
+  .btn.danger:hover { background: rgba(239,68,68,.12); border-color: var(--err); color: var(--err); }
+  .btn.ghost { background: transparent; }
+  .btn.sm { padding: 4px 10px; font-size: 12px; border-radius: 7px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--primary); outline-offset: 2px;
+  }
+
+  /* ===== 导航 ===== */
+  nav {
+    display: flex; gap: 2px; padding: 12px 24px 0; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+  }
+  nav button {
+    position: relative; border: none; background: transparent;
+    padding: 9px 16px; cursor: pointer; color: var(--muted); font-weight: 500;
+    border-radius: 9px 9px 0 0; transition: color var(--transition);
+  }
+  nav button:hover { color: var(--text-2); }
+  nav button.on { color: var(--text); font-weight: 600; }
+  nav button.on::after {
+    content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px;
+    background: var(--primary); border-radius: 2px;
+  }
+
+  main { padding: 20px 24px 64px; max-width: 1440px; margin: 0 auto; }
+
+  /* ===== 卡片 ===== */
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 18px; margin-bottom: 16px;
+    overflow-x: auto; box-shadow: var(--shadow-sm);
+  }
+  .card .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .card .card-head strong { font-size: 15px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+
+  /* ===== 表格 ===== */
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  tbody tr { transition: background var(--transition); }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  /* ===== 文本 / 标签 ===== */
+  .muted { color: var(--muted); }
+  code {
+    font-family: var(--font-mono); font-size: 12.5px;
+    background: rgba(59,130,246,.12); color: #93c5fd;
+    padding: 1px 7px; border-radius: 6px;
+  }
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 10px; border-radius: 999px; font-size: 12px; white-space: nowrap;
+    background: rgba(59,130,246,.14); color: #93c5fd;
+  }
+  .tag.ok { background: rgba(34,197,94,.14); color: #4ade80; }
+  .tag.warn { background: rgba(245,158,11,.14); color: #fbbf24; }
+  .tag.err { background: rgba(239,68,68,.14); color: #f87171; }
+  .tag.neutral { background: rgba(130,150,173,.14); color: var(--muted); }
+
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .kv { display: grid; grid-template-columns: 104px 1fr; gap: 7px 12px; align-items: baseline; }
+  .kv .muted { font-size: 12px; }
+
+  /* ===== 弹窗 ===== */
+  .modal { position: fixed; inset: 0; background: rgba(4,8,16,.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 60; }
+  .modal-box {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 22px; width: min(580px, 100%); max-height: 88vh; overflow: auto;
+    box-shadow: var(--shadow-md); animation: pop .18s ease;
+  }
+  @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.98);} to { opacity:1; transform:none;} }
+  .modal-box h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
+  .fld { margin-bottom: 12px; }
+  .fld label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 500; }
+  .fld input, .fld select { width: 100%; }
+  .fld .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* 凭据教程卡 */
+  .cred-docs { background: var(--card-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; margin: 4px 0 14px; }
+  .cred-docs-title { font-weight: 600; color: #4ade80; margin-bottom: 6px; font-size: 13px; }
+  .cred-docs ol { margin: 0; padding-left: 20px; color: var(--text-2); font-size: 13px; }
+  .cred-docs li { margin: 4px 0; }
+  .cred-docs a { color: #93c5fd; font-size: 13px; text-decoration: none; }
+  .cred-docs a:hover { text-decoration: underline; }
+
+  /* ===== Toast ===== */
+  .toast {
+    position: fixed; right: 20px; bottom: 20px; z-index: 99; max-width: 80vw;
+    background: var(--card-2); color: var(--text); border: 1px solid var(--line);
+    padding: 11px 16px; border-radius: 10px; box-shadow: var(--shadow-md);
+    display: flex; align-items: center; gap: 9px; animation: slidein .2s ease;
+  }
+  .toast::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+  .toast.bad::before { background: var(--err); }
+  @keyframes slidein { from { opacity: 0; transform: translateY(10px);} to { opacity:1; transform:none;} }
+
+  /* ===== 分页 ===== */
+  .pager { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+
+  /* ===== 登录页 ===== */
+  .login-wrap {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
+    background: var(--bg);
+    background-image:
+      radial-gradient(900px 500px at 70% -10%, rgba(34,197,94,.10), transparent 55%),
+      radial-gradient(700px 400px at 10% 110%, rgba(59,130,246,.08), transparent 55%);
+  }
+  .login-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+    padding: 40px 36px; width: min(400px, 100%); box-shadow: var(--shadow-md);
+  }
+  .login-card .logo { display: flex; justify-content: center; margin-bottom: 16px; }
+  .login-card .logo-mark {
+    width: 56px; height: 56px; border-radius: 16px;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #05230f; font-weight: 700; font-size: 24px;
+    box-shadow: 0 8px 24px rgba(34,197,94,.35);
+  }
+  .login-card h1 { font-size: 20px; margin: 0 0 4px; text-align: center; font-weight: 700; }
+  .login-card .sub { color: var(--muted); text-align: center; font-size: 13px; margin-bottom: 28px; }
+  .login-card label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 7px; }
+  .login-card input { width: 100%; padding: 11px 14px; font-size: 15px; }
+  .login-card .btn { width: 100%; padding: 11px; margin-top: 18px; font-size: 15px; }
+  .login-err { color: var(--err); font-size: 12px; margin-top: 12px; min-height: 16px; text-align: center; }
+
+  #shell { display: none; }
+  #shell.on { display: block; }
+
+  @media (max-width: 640px) {
+    header { padding: 10px 14px; }
+    nav, main { padding-left: 14px; padding-right: 14px; }
+    .kv { grid-template-columns: 92px 1fr; }
+    .grid { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body data-page-node-id="cCV3sBMK9F0LR70PfCrmA1">
 <!-- 登录页：进入系统前先鉴权 -->
 <div id="login" class="login-wrap">
   <div class="login-card">
-    <div class="logo">🌐</div>
+    <div class="logo"><div class="logo-mark">DNS</div></div>
     <h1>多机轮换解析调度器</h1>
     <div class="sub">请输入管理密码进入系统</div>
     <label for="login-token">管理密码（ADMIN_TOKEN）</label>
@@ -84,13 +259,16 @@
 <!-- 主界面 -->
 <div id="shell">
 <header data-page-node-id="ninCRFxmt8912vWyfuYGj3">
-  <h1 data-page-node-id="8BRCoOXdFlUxnoECdc7mMc">多机轮换解析调度器</h1>
-  <span class="muted" id="status" data-page-node-id="z6KRrx50t8dGILAqrLAB16"></span>
+  <div class="brand">
+    <div class="logo-mark">DNS</div>
+    <h1 data-page-node-id="8BRCoOXdFlUxnoECdc7mMc">多机轮换解析调度器</h1>
+  </div>
+  <span class="status-pill"><span class="dot" id="status-dot"></span><span id="status"></span></span>
   <div class="spacer" data-page-node-id="2L6eKu5plGECi5m98Hgsw5"></div>
   <button class="btn" id="btn-logout" data-page-node-id="vLk9pQwXs8TqR2NcYfB4d">退出登录</button>
   <button class="btn primary" id="btn-sync" data-page-node-id="g8JEMT53gyA4wBEwFlLFf6">立即同步</button>
   <button class="btn" id="btn-force" data-page-node-id="uBf3OaTxpFmpHjjPjWwKTd">强制同步</button>
-  <button class="btn" id="btn-reload" data-page-node-id="EVY9jEGh6BMn2SLkVpsHQU">刷新</button>
+  <button class="btn ghost" id="btn-reload" data-page-node-id="EVY9jEGh6BMn2SLkVpsHQU">刷新</button>
 </header>
 
 <nav id="tabs" data-page-node-id="tu9ZCh4d1AcLTrDB7ALdXV"></nav>
@@ -138,8 +316,7 @@ async function api(path, opts = {}) {
 
 function toast(msg, bad) {
   const el = document.createElement('div');
-  el.className = 'toast';
-  el.style.background = bad ? '#d64545' : '#1f2430';
+  el.className = 'toast' + (bad ? ' bad' : '');
   el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3500);
@@ -150,6 +327,7 @@ async function load() {
     const [ov, meta] = await Promise.all([api('/api/overview'), api('/api/meta')]);
     DATA = ov; META = meta;
     $('#status').textContent = '已连接 · ' + new Date(ov.now).toLocaleString('zh-CN', { hour12: false });
+    $('#status-dot').className = 'dot on';
     render();
   } catch (e) {
     // 401 说明令牌无效/过期，回到登录页
@@ -158,6 +336,7 @@ async function load() {
       return;
     }
     $('#status').textContent = '连接失败：' + e.message;
+    $('#status-dot').className = 'dot off';
     if (!DATA) { // 兜底渲染骨架
       DATA = { groups: [], machines: [], credentials: [], logs: [] };
       META = {
@@ -296,19 +475,21 @@ function bind() {
 }
 
 function viewOverview() {
-  if (!DATA.groups.length) return `<div class="card">还没有分组。建议流程：<b>① 机器</b> 录入服务器 → <b>② DNS 凭据</b> 填厂商密钥 → <b>③ 分组排班</b> 建分组并绑定域名。</div>`;
+  if (!DATA.groups.length) return `<div class="card"><div class="muted" style="text-align:center;padding:32px 0;font-size:14px">还没有分组。<br>建议流程：<b style="color:var(--text)">① 机器</b> 录入服务器 → <b style="color:var(--text)">② DNS 凭据</b> 填厂商密钥 → <b style="color:var(--text)">③ 分组排班</b> 建分组并绑定域名。</div></div>`;
   return `<div class="grid">` + DATA.groups.map((g) => `
     <div class="card">
-      <div class="row"><strong>${esc(g.name)}</strong> <span class="tag">${modeLabel(g.mode)}</span>
-        ${g.enabled ? '' : '<span class="tag warn">已停用</span>'}</div>
-      <div class="kv" style="margin-top:8px">
-        <span class="muted">当前指向</span><span>${g.target.ip ? `<strong>${esc(g.target.name || '兜底 IP')}</strong> · <code>${esc(g.target.ip)}</code>` : '<span class="tag err">无可用 IP</span>'}</span>
+      <div class="card-head"><strong>${esc(g.name)}</strong> <span class="tag neutral">${modeLabel(g.mode)}</span>
+        ${g.enabled ? '' : '<span class="tag warn">已停用</span>'}
+        <div class="spacer"></div>
+        ${g.target.ip ? `<span class="tag ok">● 在线</span>` : `<span class="tag err">○ 无可用 IP</span>`}</div>
+      <div class="kv">
+        <span class="muted">当前指向</span><span>${g.target.ip ? `<strong>${esc(g.target.name || '兜底 IP')}</strong> · <code>${esc(g.target.ip)}</code>` : '<span class="muted">—</span>'}</span>
         <span class="muted">判定依据</span><span>${esc(g.target.reason)}</span>
         <span class="muted">在线机器</span><span>${g.online.length ? esc(g.online.join('、')) : '—'}</span>
-        <span class="muted">下次变化</span><span>${g.next ? `${esc(g.next.kind)} · ${fmtIn(g.next.inMinutes)}后（${fmtTime(g.next.at)}）` : '—'}</span>
+        <span class="muted">下次变化</span><span>${g.next ? `${esc(g.next.kind)} · ${fmtIn(g.next.inMinutes)}后` : '—'}</span>
         <span class="muted">时区 / 切换</span><span>${esc(g.timezone)}${g.mode === 'rotate' ? ' · 每日 ' + esc(g.switch_time) : ''}</span>
       </div>
-      <table style="margin-top:10px">
+      <table style="margin-top:12px">
         ${g.records.map((r) => `<tr>
           <td>${esc(fullDomain(r))}</td>
           <td class="muted">${esc(r.provider)}${r.enabled ? '' : ' <span class="tag warn">停用</span>'}</td>
@@ -316,7 +497,7 @@ function viewOverview() {
           <td>${r.current && r.current === g.target.ip ? '<span class="tag ok">一致</span>' : '<span class="tag warn">待同步</span>'}</td>
         </tr>`).join('') || '<tr><td class="muted">该分组还没有解析记录</td></tr>'}
       </table>
-      <div class="row" style="margin-top:10px">
+      <div class="row" style="margin-top:12px">
         <button class="btn sm primary" data-act="sync-group" data-id="${g.id}">同步本组</button>
         <button class="btn sm" data-act="edit-group" data-id="${g.id}">编辑</button>
         <button class="btn sm" data-act="edit-members" data-id="${g.id}">排班/成员</button>
@@ -405,7 +586,7 @@ function viewLogs() {
       <td><span class="tag ${l.level === 'error' ? 'err' : l.level === 'warn' ? 'warn' : 'ok'}">${levelLabel(l.level)}</span></td>
       <td>${esc(l.message)}</td></tr>`).join('') || '<tr><td class="muted">暂无日志</td></tr>'}
     </table>
-    <div class="row" style="justify-content:flex-end;margin-top:12px">
+    <div class="pager">
       <button class="btn sm" data-act="log-prev" ${p <= 1 ? 'disabled' : ''}>上一页</button>
       <span class="muted" style="font-size:12px">第 ${p} / ${totalPages} 页</span>
       <button class="btn sm" data-act="log-next" ${p >= totalPages ? 'disabled' : ''}>下一页</button>
