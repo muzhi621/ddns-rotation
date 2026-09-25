@@ -332,12 +332,13 @@ function viewGroups() {
   return `<div class="card">
     <div class="row" style="margin-bottom:8px"><strong>分组</strong><div class="spacer"></div>
     <button class="btn primary sm" data-act="add-group">+ 新增分组</button></div>
-    <table><tr><th>分组</th><th>模式</th><th>机器</th><th>域名记录</th><th>兜底 IP</th><th></th></tr>
+    <table><tr><th>分组</th><th>模式</th><th>机器</th><th>域名记录</th><th>当前指向</th><th>兜底 IP</th><th></th></tr>
     ${DATA.groups.map((g) => `<tr>
       <td><strong>${esc(g.name)}</strong><div class="muted" style="font-size:12px">${esc(g.timezone)}${g.mode === 'rotate' ? ' · 每日 ' + esc(g.switch_time) + ' 切换' : ''}</div></td>
       <td><span class="tag">${modeLabel(g.mode)}</span></td>
       <td>${g.members.map((m) => `${esc(m.name)}${g.mode === 'window' ? ` (${esc(m.window_start)}-${esc(m.window_end)})` : ''}`).join('<br>') || '<span class="muted">未添加</span>'}</td>
       <td>${g.records.map((r) => esc(fullDomain(r))).join('<br>') || '<span class="muted">未添加</span>'}</td>
+      <td>${g.target.ip ? `<code>${esc(g.target.ip)}</code><div class="muted" style="font-size:12px">${esc(g.target.name || '兜底 IP')}</div>` : '<span class="tag err">无</span>'}</td>
       <td><code>${esc(g.fallback_ip || '—')}</code></td>
       <td class="row"><button class="btn sm" data-act="edit-group" data-id="${g.id}">编辑</button>
       <button class="btn sm" data-act="edit-members" data-id="${g.id}">排班</button>
@@ -528,15 +529,22 @@ const handlers = {
     const r = await api('/api/preview?group_id=' + id);
     const p = (r.preview || [])[0];
     if (!p) return toast('预览失败：分组不存在', true);
+    const isWindow = p.mode === 'window';
+    const head = isWindow
+      ? '<tr><th>日期</th><th>当天时段值班安排</th><th>此刻命中</th></tr>'
+      : '<tr><th>日期</th><th>值班机器</th><th>解析 IP</th><th>判定依据</th></tr>';
+    const body = p.plan.map((d) => isWindow
+      ? `<tr><td>${esc(d.date)}</td><td>${esc(d.schedule || '—')}</td><td>${d.machine ? `<strong>${esc(d.machine)}</strong>` : '<span class="tag warn">无</span>'}</td></tr>`
+      : `<tr><td>${esc(d.date)}</td><td>${d.machine ? `<strong>${esc(d.machine)}</strong>` : '<span class="tag warn">无</span>'}</td><td><code>${esc(d.ip || '—')}</code></td><td class="muted">${esc(d.reason)}</td></tr>`).join('');
+    const note = isWindow
+      ? '<div class="hint muted" style="margin-bottom:8px">按在线时段模式：一天内解析随各机器在线时段自动切换，下表列出每天的时段值班安排与「当前时刻」命中的机器。</div>'
+      : '';
     const wrap = document.createElement('div');
     wrap.className = 'modal';
     wrap.innerHTML = `<div class="modal-box"><h3>${esc(p.group)} · 未来 7 天排班预览</h3>
       <div class="hint muted" style="margin-bottom:8px">模式：${esc(MODE_LABELS[p.mode] || p.mode || '')} · 时区 ${esc(p.timezone)}</div>
-      <table><tr><th>日期</th><th>值班机器</th><th>解析 IP</th><th>判定依据</th></tr>
-      ${p.plan.map((d) => `<tr><td>${esc(d.date)}</td>
-        <td>${d.machine ? `<strong>${esc(d.machine)}</strong>` : '<span class="tag warn">无</span>'}</td>
-        <td><code>${esc(d.ip || '—')}</code></td>
-        <td class="muted">${esc(d.reason)}</td></tr>`).join('')}</table>
+      ${note}
+      <table>${head}${body}</table>
       <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" data-act2="close">关闭</button></div></div>`;
     document.body.appendChild(wrap);
     wrap.querySelector('[data-act2=close]').onclick = () => wrap.remove();

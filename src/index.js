@@ -405,6 +405,10 @@ app.get('/api/preview', async (c) => {
         machine: r.machine?.machine_name || null,
         ip: r.machine?.machine_ip || g.fallback_ip || '',
         reason: r.reason,
+        // window 模式：一天内解析随时段切换，附带当天完整的时段值班安排
+        schedule: g.mode === 'window'
+          ? members.map((m) => `${m.machine_name} ${m.window_start}-${m.window_end}`).join(' ｜ ')
+          : '',
       });
     }
     out.push({ groupId: g.id, group: g.name, mode: g.mode, timezone: tz, plan });
