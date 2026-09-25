@@ -12,6 +12,7 @@ import {
   syncOneDomain,
   parseConfig,
   writeLog,
+  pruneLogs,
 } from './scheduler.js';
 import { PROVIDER_LABELS, providerFields, providerDocs, resolveRecord } from './providers/index.js';
 
@@ -429,9 +430,17 @@ export default {
   fetch: app.fetch,
   async scheduled(event, env, ctx) {
     ctx.waitUntil(
-      syncAll(env).then(async (r) => {
+      (async () => {
+        const r = await syncAll(env);
         await writeLog(env, { level: 'info', action: 'cron', message: `定时同步完成，分组 ${r.length} 个` });
-      }),
+
+        // 超期日志自动清理：LOG_RETENTION_DAYS 默认 30 天，设 0 或不设则关闭
+        const days = env.LOG_RETENTION_DAYS ?? 30;
+        const pruned = await pruneLogs(env, days);
+        if (pruned > 0) {
+          await writeLog(env, { level: 'info', action: 'cron.prune', message: `自动清理超期日志（保留 ${days} 天），删除 ${pruned} 条` });
+        }
+      })(),
     );
   },
 };

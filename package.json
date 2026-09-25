@@ -8,7 +8,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "setup": "node scripts/deploy.mjs",
-    "test": "node test-scheduler.mjs && node --experimental-sqlite test-api.mjs",
+    "test": "node test-scheduler.mjs && node test-prune.mjs && node --experimental-sqlite test-api.mjs",
     "db:create": "wrangler d1 create ddns-rotation",
     "db:init": "wrangler d1 execute ddns-rotation --file=./schema.sql",
     "db:init:remote": "wrangler d1 execute ddns-rotation --remote --file=./schema.sql",

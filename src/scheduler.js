@@ -28,6 +28,15 @@ export async function writeLog(env, { level = 'info', group_id = null, machine_i
   );
 }
 
+// 按保留天数清理超期日志。days 必须为 >=1 的整数，否则跳过（视为未启用清理）。
+// 返回删除的条数；ts 由表默认值 datetime('now') 生成（UTC），故用 SQLite 的 datetime 偏移比较。
+export async function pruneLogs(env, days) {
+  const n = Number(days);
+  if (!Number.isFinite(n) || n < 1) return 0;
+  const r = await qRun(env, "DELETE FROM logs WHERE ts < datetime('now', ?)", `-${Math.floor(n)} days`);
+  return r?.meta?.changes ?? 0;
+}
+
 export async function getState(env, key) {
   const row = await qOne(env, 'SELECT value FROM state WHERE key = ?', key);
   return row ? row.value : '';
