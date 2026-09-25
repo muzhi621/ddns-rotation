@@ -4,8 +4,18 @@
 <meta charset="utf-8" data-page-node-id="SUIhLPlooRpWUea3cYSFlb" />
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="3H0mQq4RHrqOF2mSvL5ec1" />
 <title>多机轮换解析调度器</title>
+<!-- 无闪烁主题：在首屏绘制前就确定 data-theme，避免浅色模式先闪一下深色 -->
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('dr_theme');
+      var sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', saved || (sysDark ? 'dark' : 'light'));
+    } catch (e) {}
+  })();
+</script>
 <style>
-  /* ===== Design Tokens：深色运维风（Operations Dark）===== */
+  /* ===== Design Tokens：深色运维风（默认）+ 亮色模式 ===== */
   :root {
     --bg: #0f172a;
     --bg-soft: #0b1220;
@@ -18,10 +28,25 @@
     --muted: #8296ad;
     --primary: #22c55e;      /* 运维绿 */
     --primary-strong: #16a34a;
+    --primary-fg: #05230f;   /* 主色上的文字 */
     --accent: #3b82f6;       /* 信息蓝 */
     --ok: #22c55e;
-    --warn: #f59e0b;         /* 维护琥珀 */
-    --err: #ef4444;          /* 故障红 */
+    --ok-bg: rgba(34,197,94,.14);
+    --ok-fg: #4ade80;
+    --warn: #f59e0b;
+    --warn-bg: rgba(245,158,11,.14);
+    --warn-fg: #fbbf24;
+    --err: #ef4444;
+    --err-bg: rgba(239,68,68,.14);
+    --err-fg: #f87171;
+    --info-bg: rgba(59,130,246,.14);
+    --info-fg: #93c5fd;
+    --code-bg: rgba(59,130,246,.12);
+    --code-fg: #93c5fd;
+    --header-bg: rgba(15,23,42,.85);
+    --scroll-thumb: #263248;
+    --scroll-thumb-hover: #33415a;
+    --body-glow: rgba(34,197,94,.06);
     --radius: 12px;
     --radius-sm: 8px;
     --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -30,6 +55,41 @@
     --shadow-md: 0 8px 24px rgba(0,0,0,.45);
     --transition: 160ms cubic-bezier(.4,0,.2,1);
   }
+
+  /* 亮色模式 */
+  :root[data-theme="light"] {
+    --bg: #f5f7fa;
+    --bg-soft: #ffffff;
+    --card: #ffffff;
+    --card-2: #f1f5f9;
+    --line: #e2e8f0;
+    --line-soft: #eef2f7;
+    --text: #0f172a;
+    --text-2: #334155;
+    --muted: #64748b;
+    --primary: #16a34a;
+    --primary-strong: #15803d;
+    --primary-fg: #ffffff;
+    --ok: #16a34a;
+    --ok-bg: #dcfce7;
+    --ok-fg: #15803d;
+    --warn: #d97706;
+    --warn-bg: #fef3c7;
+    --warn-fg: #b45309;
+    --err: #dc2626;
+    --err-bg: #fee2e2;
+    --err-fg: #b91c1c;
+    --info-bg: #dbeafe;
+    --info-fg: #1d4ed8;
+    --code-bg: #eff6ff;
+    --code-fg: #1d4ed8;
+    --header-bg: rgba(255,255,255,.85);
+    --scroll-thumb: #cbd5e1;
+    --scroll-thumb-hover: #94a3b8;
+    --body-glow: rgba(22,163,74,.05);
+    --shadow-sm: 0 1px 2px rgba(15,23,42,.06);
+    --shadow-md: 0 8px 24px rgba(15,23,42,.12);
+  }
   * { box-sizing: border-box; }
   html, body { margin:0; }
   body {
@@ -37,21 +97,21 @@
     color: var(--text);
     font: 14px/1.6 var(--font-sans);
     -webkit-font-smoothing: antialiased;
-    background-image: radial-gradient(1200px 600px at 80% -10%, rgba(34,197,94,.06), transparent 60%);
+    background-image: radial-gradient(1200px 600px at 80% -10%, var(--body-glow), transparent 60%);
   }
   ::selection { background: rgba(34,197,94,.3); }
 
   /* 滚动条 */
   ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-thumb { background: #263248; border-radius: 8px; border: 2px solid var(--bg); }
-  ::-webkit-scrollbar-thumb:hover { background: #33415a; }
+  ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 8px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
 
   /* ===== 顶栏 ===== */
   header {
     position: sticky; top: 0; z-index: 40;
     display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
     padding: 14px 24px;
-    background: rgba(15,23,42,.85);
+    background: var(--header-bg);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--line);
   }
@@ -59,8 +119,8 @@
   header .brand .logo-mark {
     width: 34px; height: 34px; border-radius: 9px; flex: none;
     display: grid; place-items: center;
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: #05230f; font-weight: 700; font-size: 15px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+    color: var(--primary-fg); font-weight: 700; font-size: 15px;
     box-shadow: 0 4px 14px rgba(34,197,94,.35);
   }
   header h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: .2px; }
@@ -82,7 +142,7 @@
     background: var(--bg-soft); color: var(--text);
     transition: border-color var(--transition), box-shadow var(--transition);
   }
-  input::placeholder { color: #5b6b80; }
+  input::placeholder { color: var(--muted); }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(34,197,94,.15); }
   select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238296ad' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
   select option { background: var(--card); color: var(--text); }
@@ -96,8 +156,8 @@
   }
   .btn:hover { border-color: var(--primary); color: var(--text); background: var(--card-2); }
   .btn:active { transform: translateY(1px); }
-  .btn.primary { background: var(--primary); color: #05230f; border-color: var(--primary); font-weight: 600; }
-  .btn.primary:hover { background: #2ee06b; color: #05230f; }
+  .btn.primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); font-weight: 600; }
+  .btn.primary:hover { background: var(--primary-strong); color: var(--primary-fg); }
   .btn.danger { color: var(--err); border-color: rgba(239,68,68,.3); }
   .btn.danger:hover { background: rgba(239,68,68,.12); border-color: var(--err); color: var(--err); }
   .btn.ghost { background: transparent; }
@@ -141,25 +201,25 @@
   th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; white-space: nowrap; }
   th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
   tbody tr { transition: background var(--transition); }
-  tbody tr:hover { background: rgba(255,255,255,.02); }
+  tbody tr:hover { background: var(--card-2); }
   tbody tr:last-child td { border-bottom: none; }
 
   /* ===== 文本 / 标签 ===== */
   .muted { color: var(--muted); }
   code {
     font-family: var(--font-mono); font-size: 12.5px;
-    background: rgba(59,130,246,.12); color: #93c5fd;
+    background: var(--code-bg); color: var(--code-fg);
     padding: 1px 7px; border-radius: 6px;
   }
   .tag {
     display: inline-flex; align-items: center; gap: 4px;
     padding: 2px 10px; border-radius: 999px; font-size: 12px; white-space: nowrap;
-    background: rgba(59,130,246,.14); color: #93c5fd;
+    background: var(--info-bg); color: var(--info-fg);
   }
-  .tag.ok { background: rgba(34,197,94,.14); color: #4ade80; }
-  .tag.warn { background: rgba(245,158,11,.14); color: #fbbf24; }
-  .tag.err { background: rgba(239,68,68,.14); color: #f87171; }
-  .tag.neutral { background: rgba(130,150,173,.14); color: var(--muted); }
+  .tag.ok { background: var(--ok-bg); color: var(--ok-fg); }
+  .tag.warn { background: var(--warn-bg); color: var(--warn-fg); }
+  .tag.err { background: var(--err-bg); color: var(--err-fg); }
+  .tag.neutral { background: rgba(130,150,173,.16); color: var(--muted); }
 
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .kv { display: grid; grid-template-columns: 104px 1fr; gap: 7px 12px; align-items: baseline; }
@@ -181,10 +241,10 @@
 
   /* 凭据教程卡 */
   .cred-docs { background: var(--card-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; margin: 4px 0 14px; }
-  .cred-docs-title { font-weight: 600; color: #4ade80; margin-bottom: 6px; font-size: 13px; }
+  .cred-docs-title { font-weight: 600; color: var(--ok-fg); margin-bottom: 6px; font-size: 13px; }
   .cred-docs ol { margin: 0; padding-left: 20px; color: var(--text-2); font-size: 13px; }
   .cred-docs li { margin: 4px 0; }
-  .cred-docs a { color: #93c5fd; font-size: 13px; text-decoration: none; }
+  .cred-docs a { color: var(--info-fg); font-size: 13px; text-decoration: none; }
   .cred-docs a:hover { text-decoration: underline; }
 
   /* ===== Toast ===== */
@@ -206,8 +266,8 @@
     min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
     background: var(--bg);
     background-image:
-      radial-gradient(900px 500px at 70% -10%, rgba(34,197,94,.10), transparent 55%),
-      radial-gradient(700px 400px at 10% 110%, rgba(59,130,246,.08), transparent 55%);
+      radial-gradient(900px 500px at 70% -10%, var(--body-glow), transparent 55%),
+      radial-gradient(700px 400px at 10% 110%, var(--info-bg), transparent 55%);
   }
   .login-card {
     background: var(--card); border: 1px solid var(--line); border-radius: 20px;
@@ -217,8 +277,8 @@
   .login-card .logo-mark {
     width: 56px; height: 56px; border-radius: 16px;
     display: grid; place-items: center;
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: #05230f; font-weight: 700; font-size: 24px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+    color: var(--primary-fg); font-weight: 700; font-size: 24px;
     box-shadow: 0 8px 24px rgba(34,197,94,.35);
   }
   .login-card h1 { font-size: 20px; margin: 0 0 4px; text-align: center; font-weight: 700; }
@@ -265,6 +325,7 @@
   </div>
   <span class="status-pill"><span class="dot" id="status-dot"></span><span id="status"></span></span>
   <div class="spacer" data-page-node-id="2L6eKu5plGECi5m98Hgsw5"></div>
+  <button class="btn ghost" id="btn-theme" title="切换亮色/深色模式">🌙</button>
   <button class="btn" id="btn-logout" data-page-node-id="vLk9pQwXs8TqR2NcYfB4d">退出登录</button>
   <button class="btn primary" id="btn-sync" data-page-node-id="g8JEMT53gyA4wBEwFlLFf6">立即同步</button>
   <button class="btn" id="btn-force" data-page-node-id="uBf3OaTxpFmpHjjPjWwKTd">强制同步</button>
@@ -896,8 +957,28 @@ $('#btn-force').onclick = (e) => guard(async () => {
   toast('已强制重新下发全部解析');
 }, e.currentTarget);
 
+/* ---------- 主题切换 ---------- */
+const THEME_KEY = 'dr_theme';
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const isLight = theme === 'light';
+  const btn = $('#btn-theme');
+  if (btn) btn.textContent = isLight ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  const next = cur === 'light' ? 'dark' : 'light';
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+}
+$('#btn-theme').onclick = toggleTheme;
+
 // 启动：有令牌则尝试直接进入，否则显示登录页
 (function init() {
+  // 主题：优先用户手动选择，其次跟随系统偏好，默认深色
+  const saved = localStorage.getItem(THEME_KEY);
+  const sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(saved || (sysDark ? 'dark' : 'light'));
   if (TOKEN) {
     doLogin();
   } else {
