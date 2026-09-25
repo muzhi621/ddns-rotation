@@ -101,7 +101,12 @@ export async function update({ cfg, rec, value }) {
   let recordId;
   let action;
   if (hit?.id) {
-    await call(cfg, `/domains/${encodeURIComponent(zone)}/records/${hit.id}`, { method: 'PUT', body });
+    // host 锁定为原记录的 hostName：即使 rec.record_name 配置有误，也绝不会把已有记录改名/挪到别的子域
+    const safeHost = String(hit.hostName ?? hostName);
+    await call(cfg, `/domains/${encodeURIComponent(zone)}/records/${hit.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ host: safeHost, type, answer: value, ttl }),
+    });
     recordId = String(hit.id);
     action = 'updated';
   } else {
