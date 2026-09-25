@@ -113,9 +113,10 @@ const pv = (await req('GET', `/api/preview?group_id=${gB}`)).json;
 check('预览 7 天', pv.preview[0].plan.length, 7);
 check('预览每天指向不同机器', new Set(pv.preview[0].plan.map((p) => p.ip)).size >= 3, true);
 
-// 11. 日志
-const logs = (await req('GET', '/api/logs?limit=200')).json.logs;
-check('日志写入 dns.update', logs.some((l) => l.action === 'dns.update'), true);
+// 11. 日志（分页接口：验证 total 与分页结构）
+const logsRes = (await req('GET', '/api/logs?page=1&pageSize=100')).json;
+check('日志分页返回结构', Array.isArray(logsRes.logs) && logsRes.total > 0 && logsRes.totalPages >= 1, true);
+check('日志写入 dns.update', logsRes.logs.some((l) => l.action === 'dns.update'), true);
 
 // 12. 兜底 IP：把 A 组成员全部停用后应走兜底
 await req('PUT', `/api/groups/${gA}`, { fallback_ip: '9.9.9.9' });

@@ -268,11 +268,24 @@ async function guard(fn, btn) {
 }
 
 /* ---------- 渲染 ---------- */
+async function loadLogs(page) {
+  try {
+    const r = await api(`/api/logs?page=${page}&pageSize=20`);
+    DATA.logs = r.logs;
+    DATA.logPage = r.page;
+    DATA.logTotal = r.total;
+    DATA.logTotalPages = r.totalPages;
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
 function render() {
   $('#tabs').innerHTML = TABS.map(([k, label]) => `<button class="${k === TAB ? 'on' : ''}" data-tab="${k}">${label}</button>`).join('');
   $('#tabs').querySelectorAll('button').forEach((b) => (b.onclick = () => { TAB = b.dataset.tab; render(); }));
   $('#app').innerHTML = { overview: viewOverview, machines: viewMachines, groups: viewGroups, domains: viewDomains, creds: viewCreds, logs: viewLogs }[TAB]();
   bind();
+  if (TAB === 'logs' && !DATA.logPage) loadLogs(DATA.logPage || 1).then(render);
 }
 
 function bind() {
@@ -381,14 +394,22 @@ function viewCreds() {
 }
 
 function viewLogs() {
+  const p = DATA.logPage || 1;
+  const total = DATA.logTotal ?? 0;
+  const totalPages = DATA.logTotalPages ?? 1;
   return `<div class="card">
-    <div class="row" style="margin-bottom:8px"><strong>最近日志</strong><div class="spacer"></div>
+    <div class="row" style="margin-bottom:8px"><strong>日志</strong><span class="muted" style="font-size:12px">共 ${total} 条</span><div class="spacer"></div>
     <button class="btn sm danger" data-act="clear-logs">清空</button></div>
     <table><tr><th style="width:150px">时间</th><th style="width:70px">级别</th><th>内容</th></tr>
-    ${DATA.logs.map((l) => `<tr><td class="muted">${fmtTime(l.ts)}</td>
+    ${(DATA.logs || []).map((l) => `<tr><td class="muted">${fmtTime(l.ts)}</td>
       <td><span class="tag ${l.level === 'error' ? 'err' : l.level === 'warn' ? 'warn' : 'ok'}">${levelLabel(l.level)}</span></td>
       <td>${esc(l.message)}</td></tr>`).join('') || '<tr><td class="muted">暂无日志</td></tr>'}
-    </table></div>`;
+    </table>
+    <div class="row" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn sm" data-act="log-prev" ${p <= 1 ? 'disabled' : ''}>上一页</button>
+      <span class="muted" style="font-size:12px">第 ${p} / ${totalPages} 页</span>
+      <button class="btn sm" data-act="log-next" ${p >= totalPages ? 'disabled' : ''}>下一页</button>
+    </div></div>`;
 }
 
 /* ---------- DNS 凭据：一步式弹窗（选厂商即切换字段） ---------- */
@@ -622,7 +643,22 @@ const handlers = {
     toast(msg || '完成');
   }, el),
 
-  'clear-logs': () => guard(async () => { if (confirm('清空全部日志？')) await api('/api/logs/clear', { method: 'POST' }); }),
+  'clear-logs': () => guard(async () => {
+    if (!confirm('清空全部日志？')) return;
+    await api('/api/logs/clear', { method: 'POST' });
+    DATA.logPage = 0; // 强制重新加载第一页
+    await loadLogs(1);
+  }),
+  'log-prev': () => guard(async () => {
+    const p = Math.max(1, (DATA.logPage || 1) - 1);
+    await loadLogs(p);
+    render();
+  }),
+  'log-next': () => guard(async () => {
+    const p = Math.min(DATA.logTotalPages || 1, (DATA.logPage || 1) + 1);
+    await loadLogs(p);
+    render();
+  }),
 };
 
 function groupFields() {

@@ -93,8 +93,12 @@ app.get('/api/overview', async (c) => {
 });
 
 app.get('/api/logs', async (c) => {
-  const limit = Math.min(int(c.req.query('limit'), 100), 500);
-  return c.json({ logs: await qAll(c.env, 'SELECT * FROM logs ORDER BY id DESC LIMIT ?', limit) });
+  const page = Math.max(1, int(c.req.query('page'), 1));
+  const pageSize = Math.min(Math.max(1, int(c.req.query('pageSize'), 20)), 100);
+  const offset = (page - 1) * pageSize;
+  const total = (await qOne(c.env, 'SELECT COUNT(*) AS c FROM logs'))?.c || 0;
+  const logs = await qAll(c.env, 'SELECT * FROM logs ORDER BY id DESC LIMIT ? OFFSET ?', pageSize, offset);
+  return c.json({ logs, total: Number(total), page, pageSize, totalPages: Math.max(1, Math.ceil(Number(total) / pageSize)) });
 });
 
 /* ---------------- 机器 ---------------- */
