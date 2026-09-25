@@ -515,6 +515,13 @@ async function loadLogs(page) {
     DATA.logPage = r.page;
     DATA.logTotal = r.total;
     DATA.logTotalPages = r.totalPages;
+    // 拉取保留天数配置（仅在尚未加载时，避免翻页反复请求）
+    if (DATA.logRetDays === undefined) {
+      try {
+        const ret = await api('/api/logs/retention');
+        DATA.logRetDays = ret.days;
+      } catch (_) { DATA.logRetDays = 30; }
+    }
   } catch (e) {
     toast(e.message, true);
   }
@@ -641,6 +648,10 @@ function viewLogs() {
   const totalPages = DATA.logTotalPages ?? 1;
   return `<div class="card">
     <div class="row" style="margin-bottom:8px"><strong>日志</strong><span class="muted" style="font-size:12px">共 ${total} 条</span><div class="spacer"></div>
+    <span class="muted" style="font-size:12px">自动清理：保留</span>
+    <input type="number" id="log-ret-days" min="0" step="1" value="${esc(DATA.logRetDays ?? '')}" placeholder="天数" style="width:70px" />
+    <span class="muted" style="font-size:12px">天（0=关闭）</span>
+    <button class="btn sm" data-act="save-retention">保存</button>
     <button class="btn sm danger" data-act="clear-logs">清空</button></div>
     <table><tr><th style="width:150px">时间</th><th style="width:70px">级别</th><th>内容</th></tr>
     ${(DATA.logs || []).map((l) => `<tr><td class="muted">${fmtTime(l.ts)}</td>
@@ -892,6 +903,19 @@ const handlers = {
       await api('/api/logs/clear', { method: 'POST' });
       await loadLogs(1);
       render();
+    } catch (e) { toast(e.message, true); }
+    finally { if (el) el.disabled = false; }
+  },
+  'save-retention': async (id, el) => {
+    const inp = $('#log-ret-days');
+    const v = inp ? inp.value.trim() : '';
+    const n = Number(v);
+    if (v === '' || !Number.isInteger(n) || n < 0) { toast('保留天数须为 ≥0 的整数（0=关闭自动清理）', true); return; }
+    if (el) el.disabled = true;
+    try {
+      await api('/api/logs/retention', { method: 'POST', body: { days: n } });
+      DATA.logRetDays = n;
+      toast(n === 0 ? '已关闭自动清理' : `已设置：保留 ${n} 天，超期日志将由定时任务自动删除`);
     } catch (e) { toast(e.message, true); }
     finally { if (el) el.disabled = false; }
   },

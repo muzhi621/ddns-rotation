@@ -4,6 +4,7 @@ import {
   qRun,
   qOne,
   getState,
+  setState,
   groupMembers,
   resolveTarget,
   nextChange,
@@ -426,6 +427,29 @@ app.post('/api/logs/clear', async (c) => {
   return c.json({ ok: true });
 });
 
+// 日志保留天数：state(log_retention_days) > 环境变量 LOG_RETENTION_DAYS > 默认 30
+// 返回当前生效值；0 或非法值表示「关闭自动清理」
+function retentionDays(env) {
+  const raw = env.LOG_RETENTION_DAYS ?? 30;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 0;
+}
+
+app.get('/api/logs/retention', async (c) => {
+  const saved = await getState(c.env, 'log_retention_days');
+  // saved 非空则优先用界面配置；否则返回当前生效值（来自环境变量/默认）
+  const fromUI = saved === '' ? null : Number(saved);
+  return c.json({ days: fromUI ?? retentionDays(c.env), source: fromUI === null ? 'env' : 'ui' });
+});
+
+app.post('/api/logs/retention', async (c) => {
+  const b = await c.req.json();
+  const n = Number(b?.days);
+  if (!Number.isInteger(n) || n < 0) return c.json({ error: '保留天数须为 ≥0 的整数（0 表示关闭自动清理）' }, 400);
+  await setState(c.env, 'log_retention_days', String(n));
+  return c.json({ days: n });
+});
+
 export default {
   fetch: app.fetch,
   async scheduled(event, env, ctx) {
@@ -434,8 +458,10 @@ export default {
         const r = await syncAll(env);
         await writeLog(env, { level: 'info', action: 'cron', message: `定时同步完成，分组 ${r.length} 个` });
 
-        // 超期日志自动清理：LOG_RETENTION_DAYS 默认 30 天，设 0 或不设则关闭
-        const days = env.LOG_RETENTION_DAYS ?? 30;
+        // 超期日志自动清理：优先取界面配置(state)，其次环境变量 LOG_RETENTION_DAYS，默认 30 天；0 则关闭
+        const saved = await getState(env, 'log_retention_days');
+        const uiDays = saved === '' ? null : Number(saved);
+        const days = uiDays === null ? retentionDays(env) : (Number.isInteger(uiDays) && uiDays >= 0 ? uiDays : 0);
         const pruned = await pruneLogs(env, days);
         if (pruned > 0) {
           await writeLog(env, { level: 'info', action: 'cron.prune', message: `自动清理超期日志（保留 ${days} 天），删除 ${pruned} 条` });

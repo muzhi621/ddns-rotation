@@ -165,5 +165,25 @@ for (const r of recsB) await req('DELETE', `/api/domains/${r.id}`);
 const delCred2 = await req('DELETE', `/api/credentials/${cred}`);
 check('解除引用后凭据可删除', delCred2.status, 200);
 
+// 15. 日志保留天数配置（界面入口）
+const ret0 = await req('GET', '/api/logs/retention');
+check('读取保留天数（默认来源 env）', ret0.status === 200 && ret0.json.source === 'env', true);
+
+const setRet = await req('POST', '/api/logs/retention', { days: 7 });
+check('设置保留天数 7', setRet.status === 200 && setRet.json.days === 7, true);
+check('state 已写入 7', qState(db, 'log_retention_days'), '7');
+
+const ret1 = await req('GET', '/api/logs/retention');
+check('读取保留天数（来源 ui=7）', ret1.json.days === 7 && ret1.json.source === 'ui', true);
+
+const setZero = await req('POST', '/api/logs/retention', { days: 0 });
+check('设置 0 关闭自动清理', setZero.status === 200 && setZero.json.days === 0, true);
+check('state 已写入 0', qState(db, 'log_retention_days'), '0');
+
+const badRet = await req('POST', '/api/logs/retention', { days: -3 });
+check('负数保留天数被拒绝', badRet.status, 400);
+const badRet2 = await req('POST', '/api/logs/retention', { days: 1.5 });
+check('小数保留天数被拒绝', badRet2.status, 400);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
